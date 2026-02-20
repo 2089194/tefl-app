@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %} – Privacy{% endblock %}
+{% block content %}
+<div class="onboarding">
+  <div class="onboarding__hero" style="gap:0.75rem">
+    <div class="onboarding__icon-circle onboarding__icon-circle--green">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    </div>
+    <h1 style="font-size:1.5rem;font-weight:700">Privacy &amp; Consent</h1>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:1rem;flex:1;padding-top:1rem">
+    <div class="privacy-box privacy-box--blue">
+      <p class="privacy-box__title">Your recordings are private</p>
+      <p class="privacy-box__text">We use AI to analyse your speech and provide feedback. Your audio is processed securely and is not shared with third parties.</p>
+    </div>
+    <div class="privacy-box privacy-box--plain">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.35rem">
+        <div>
+          <p class="privacy-box__title" style="margin-bottom:0.1rem">Save recordings (optional)</p>
+          <p class="privacy-box__text" style="margin:0">Keep your recordings to track progress over time</p>
+        </div>
+        <label class="toggle" style="margin-left:1rem">
+          <input type="checkbox" id="save-recordings">
+          <span class="toggle__track"></span>
+        </label>
+      </div>
+    </div>
+    <div class="privacy-box privacy-box--plain">
+      <div class="checkbox-row">
+        <input type="checkbox" id="consent-check">
+        <label for="consent-check">I consent to speech processing and understand that my voice will be analysed by AI to provide feedback on my English speaking skills.</label>
+      </div>
+    </div>
+    <p style="font-size:0.82rem;color:var(--muted);line-height:1.55">You can change these settings anytime in your profile. We are committed to protecting your privacy.</p>
+  </div>
+  <div class="onboarding__footer">
+    <a href="{{ url_for('index') }}" class="btn btn--primary btn--full" id="agree-btn" style="min-height:52px;opacity:0.5;pointer-events:none">Agree and Continue</a>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const check = document.getElementById('consent-check');
+const btn   = document.getElementById('agree-btn');
+check.addEventListener('change', () => {
+  btn.style.opacity = check.checked ? '1' : '0.5';
+  btn.style.pointerEvents = check.checked ? 'auto' : 'none';
+});
+</script>
+{% endblock %}

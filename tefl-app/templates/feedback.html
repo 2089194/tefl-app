@@ -1,149 +1,160 @@
 {% extends "base.html" %}
 {% block title %} – Feedback{% endblock %}
-
 {% block content %}
-<div class="screen">
-
-  <!-- Header -->
-  <div class="screen__header">
-    <h1 class="screen__title">Feedback</h1>
-    <p class="screen__subtitle">Detailed analysis of your latest speaking session.</p>
+<div class="screen fade-in">
+  <div class="screen-header screen-header--blue">
+    <h1 class="screen-header__title">Feedback Results</h1>
+    <p class="screen-header__subtitle">{{ feedback.prompt_title or 'Free Practice' }}</p>
   </div>
+  <div class="screen-body">
 
-  <!-- Score overview -->
-  <div class="card">
-    <p class="label-caps">Overall Score</p>
-    <div class="score-overview">
-      <div class="score-circle" aria-label="Overall score {{ feedback.overall }} out of 100">
-        <span class="score-circle__value">{{ feedback.overall }}</span>
+    <!-- Transcription -->
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
+        <p style="font-weight:600">Your Speech</p>
+        <button class="btn btn--sm btn--outline" id="edit-btn" onclick="toggleEdit()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          Edit
+        </button>
+      </div>
+      <p id="transcript-text" style="color:var(--fg-secondary);line-height:1.6;font-size:0.9rem">{{ feedback.transcript }}</p>
+      <textarea id="transcript-edit" style="display:none;width:100%;min-height:100px;padding:0.65rem;border:1px solid var(--border-strong);border-radius:var(--radius);font-family:inherit;font-size:0.9rem;resize:vertical;outline:none">{{ feedback.transcript }}</textarea>
+      <div id="edit-actions" style="display:none;gap:0.5rem;margin-top:0.5rem">
+        <button class="btn btn--primary btn--sm" onclick="saveEdit()">Save</button>
+        <button class="btn btn--outline btn--sm" onclick="cancelEdit()">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Overall scores -->
+    <div class="feedback-card">
+      <div class="feedback-card__header">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg>
+        Overall Scores
       </div>
       <div class="score-bars">
-
-        <div class="score-bar">
-          <div class="score-bar__labels">
-            <span>Pronunciation</span>
-            <span class="score-bar__number">{{ feedback.pronunciation }}/100</span>
+        {% for name, val in [('Pronunciation', feedback.pronunciation), ('Fluency', feedback.fluency), ('Grammar', feedback.grammar)] %}
+        <div class="score-bar-row">
+          <div class="score-bar-row__labels">
+            <span class="score-bar-row__label">{{ name }}</span>
+            <span class="score-bar-row__number">{{ val }}/100</span>
           </div>
-          <div class="score-bar__track" role="progressbar"
-               aria-valuenow="{{ feedback.pronunciation }}"
-               aria-valuemin="0" aria-valuemax="100"
-               aria-label="Pronunciation {{ feedback.pronunciation }} out of 100">
-            <div class="score-bar__fill" style="width: {{ feedback.pronunciation }}%"></div>
+          <div class="score-bar-track" role="progressbar" aria-valuenow="{{ val }}" aria-valuemin="0" aria-valuemax="100" aria-label="{{ name }} {{ val }} out of 100">
+            <div class="score-bar-fill {% if val >= 85 %}score-bar-fill--high{% elif val >= 70 %}score-bar-fill--mid{% elif val >= 50 %}score-bar-fill--low{% else %}score-bar-fill--poor{% endif %}" style="width:{{ val }}%"></div>
           </div>
         </div>
-
-        <div class="score-bar">
-          <div class="score-bar__labels">
-            <span>Fluency</span>
-            <span class="score-bar__number">{{ feedback.fluency }}/100</span>
-          </div>
-          <div class="score-bar__track" role="progressbar"
-               aria-valuenow="{{ feedback.fluency }}"
-               aria-valuemin="0" aria-valuemax="100"
-               aria-label="Fluency {{ feedback.fluency }} out of 100">
-            <div class="score-bar__fill" style="width: {{ feedback.fluency }}%"></div>
-          </div>
-        </div>
-
-        <div class="score-bar">
-          <div class="score-bar__labels">
-            <span>Confidence</span>
-            <span class="score-bar__number">{{ feedback.confidence }}/100</span>
-          </div>
-          <div class="score-bar__track" role="progressbar"
-               aria-valuenow="{{ feedback.confidence }}"
-               aria-valuemin="0" aria-valuemax="100"
-               aria-label="Confidence {{ feedback.confidence }} out of 100">
-            <div class="score-bar__fill" style="width: {{ feedback.confidence }}%"></div>
-          </div>
-        </div>
-
-      </div>
-    </div>
-  </div>
-
-  <!-- Annotated transcription -->
-  <div class="card">
-    <div class="card__row">
-      <p class="label-caps">Transcription</p>
-      <button class="expand-btn" aria-expanded="true" aria-controls="transcript-body" id="transcript-toggle">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <polyline points="6 9 12 15 18 9"/>
-        </svg>
-      </button>
-    </div>
-    <div class="transcript" id="transcript-body">
-      <p class="transcript__text">
-        {% for segment in feedback.transcript %}
-          {% if segment.flag == 'good' %}
-            <mark class="transcript__mark transcript__mark--good" title="Good">{{ segment.text }}</mark>
-          {% elif segment.flag == 'needs_work' %}
-            <mark class="transcript__mark transcript__mark--warn" title="Needs work">{{ segment.text }}</mark>
-          {% else %}
-            {{ segment.text }}
-          {% endif %}
         {% endfor %}
-      </p>
-      <div class="transcript__legend" aria-label="Legend">
-        <span class="legend-item">
-          <span class="legend-item__dot legend-item__dot--good" aria-hidden="true"></span>Good
-        </span>
-        <span class="legend-item">
-          <span class="legend-item__dot legend-item__dot--warn" aria-hidden="true"></span>Needs work
-        </span>
       </div>
     </div>
-  </div>
 
-  <!-- Suggestions -->
-  <section aria-labelledby="suggestions-heading">
-    <p class="label-caps" id="suggestions-heading">Suggestions</p>
-    <div class="suggestions">
-      {% for s in feedback.suggestions %}
-      <div class="suggestion suggestion--{{ s.type }}" role="article">
-        <div class="suggestion__icon" aria-hidden="true">
-          {% if s.type == 'tip' %}
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="9" x2="15" y1="2" y2="2"/><path d="M12 2v7"/>
-            <path d="M4.22 10.22a6 6 0 0 0 11.56 2M12 22v-4"/>
-            <circle cx="12" cy="12" r="3"/>
-          </svg>
-          {% elif s.type == 'good' %}
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-            <polyline points="22 4 12 14.01 9 11.01"/>
-          </svg>
-          {% else %}
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="12" x2="12" y1="8" y2="12"/>
-            <line x1="12" x2="12.01" y1="16" y2="16"/>
-          </svg>
-          {% endif %}
-        </div>
-        <div class="suggestion__body">
-          <p class="suggestion__title">{{ s.title }}</p>
-          <p class="suggestion__text">{{ s.body }}</p>
-        </div>
+    <!-- Pronunciation feedback -->
+    {% if feedback.pronunciation_items %}
+    <div class="feedback-card">
+      <div class="feedback-card__header">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+        Pronunciation Feedback
+      </div>
+      {% for item in feedback.pronunciation_items %}
+      <div class="pronunciation-item">
+        <p>Word: <span class="pronunciation-item__word">{{ item.word }}</span></p>
+        <p class="pronunciation-item__issue">Issue: {{ item.issue }}</p>
+        <p class="pronunciation-item__correction">Correction: {{ item.correction }}</p>
+        <p class="pronunciation-item__phonetic">{{ item.phonetic }}</p>
+        <button class="listen-btn" onclick="speakWord('{{ item.word }}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+          Listen
+        </button>
       </div>
       {% endfor %}
     </div>
-  </section>
+    {% endif %}
 
+    <!-- Grammar feedback -->
+    {% if feedback.grammar_items %}
+    <div class="feedback-card">
+      <div class="feedback-card__header">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        Grammar Feedback
+      </div>
+      {% for item in feedback.grammar_items %}
+      <div class="grammar-item">
+        <span class="grammar-item__label">You said:</span>
+        <span class="grammar-item__wrong">{{ item.incorrect }}</span>
+        <span class="grammar-item__label">Correct:</span>
+        <span class="grammar-item__right">{{ item.correct }}</span>
+        <span class="grammar-item__label">Explanation:</span>
+        <span class="grammar-item__explain">{{ item.explanation }}</span>
+        <div class="example-box"><span style="font-size:0.72rem;color:var(--muted)">Example: </span>{{ item.example }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Fluency feedback -->
+    <div class="feedback-card">
+      <div class="feedback-card__header">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Fluency Feedback
+      </div>
+      {% if feedback.filler_words %}
+      <p style="font-size:0.85rem;color:var(--muted);margin-bottom:0.4rem">Filler words detected:</p>
+      <div class="tag-list">
+        {% for word in feedback.filler_words %}
+        <span class="tag tag--amber">{{ word }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+      {% if feedback.improved_version %}
+      <p style="font-size:0.85rem;color:var(--muted);margin-top:0.75rem;margin-bottom:0.4rem">Suggested smoother version:</p>
+      <p style="font-size:0.9rem;line-height:1.6">{{ feedback.improved_version }}</p>
+      {% endif %}
+    </div>
+
+    <!-- Improved full version -->
+    {% if feedback.improved_full %}
+    <div class="feedback-card feedback-card--success">
+      <div class="feedback-card__header">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg>
+        Improved Full Version
+      </div>
+      <p style="font-size:0.9rem;line-height:1.65;white-space:pre-line">{{ feedback.improved_full }}</p>
+      <a href="{{ url_for('speak', prompt='Practice Improved Version') }}" class="btn btn--purple btn--full" style="margin-top:0.75rem">Practice This Version</a>
+    </div>
+    {% endif %}
+
+    <!-- Actions -->
+    <div style="display:flex;gap:0.75rem;padding-bottom:0.5rem">
+      <a href="{{ url_for('history') }}" class="btn btn--primary" style="flex:1">View History</a>
+      <a href="{{ url_for('speak') }}" class="btn btn--outline" style="flex:1">New Practice</a>
+    </div>
+  </div>
 </div>
 {% endblock %}
-
 {% block scripts %}
 <script>
-  // Transcript expand/collapse toggle
-  const toggle = document.getElementById('transcript-toggle');
-  const body = document.getElementById('transcript-body');
-  if (toggle && body) {
-    toggle.addEventListener('click', () => {
-      const expanded = toggle.getAttribute('aria-expanded') === 'true';
-      toggle.setAttribute('aria-expanded', String(!expanded));
-      body.hidden = expanded;
-    });
+function toggleEdit(){
+  document.getElementById('transcript-text').style.display='none';
+  document.getElementById('transcript-edit').style.display='block';
+  document.getElementById('edit-actions').style.display='flex';
+  document.getElementById('edit-btn').style.display='none';
+}
+function saveEdit(){
+  const val=document.getElementById('transcript-edit').value;
+  document.getElementById('transcript-text').textContent=val;
+  cancelEdit();
+}
+function cancelEdit(){
+  document.getElementById('transcript-text').style.display='block';
+  document.getElementById('transcript-edit').style.display='none';
+  document.getElementById('edit-actions').style.display='none';
+  document.getElementById('edit-btn').style.display='';
+}
+function speakWord(word){
+  if('speechSynthesis' in window){
+    const u=new SpeechSynthesisUtterance(word);
+    u.lang='en-GB'; u.rate=0.8;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(u);
   }
+}
 </script>
 {% endblock %}

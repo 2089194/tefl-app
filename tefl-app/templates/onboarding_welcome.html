@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %} – Welcome{% endblock %}
+{% block content %}
+<div class="onboarding onboarding--gradient">
+  <div class="onboarding__hero">
+    <div class="onboarding__icon-circle onboarding__icon-circle--blue">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+    </div>
+    <h1 class="onboarding__title">Improve Your Spoken English with Instant AI Feedback</h1>
+    <p class="onboarding__subtitle">Practice privately. Improve confidently.</p>
+  </div>
+  <div class="onboarding__footer">
+    <a href="{{ url_for('onboarding_how') }}" class="btn btn--primary btn--full" style="font-size:1.05rem;min-height:52px">Get Started</a>
+    <a href="{{ url_for('onboarding_how') }}" style="text-align:center;font-size:0.875rem;color:var(--blue)">Learn how it works</a>
+  </div>
+</div>
+{% endblock %}

@@ -1,89 +1,80 @@
 {% extends "base.html" %}
 {% block title %} – Profile{% endblock %}
-
 {% block content %}
-<div class="screen">
-
-  <!-- Header -->
-  <div class="profile-header">
-    <div class="avatar" aria-label="User avatar">L</div>
-    <div>
-      <h1 class="screen__title">Learner Profile</h1>
-      <p class="screen__subtitle">Member since {{ profile_stats.member_since }}</p>
-    </div>
-  </div>
-
-  <!-- Stats row -->
-  <div class="profile-stats" role="list" aria-label="Profile statistics">
-    <div class="profile-stat" role="listitem">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <rect width="18" height="18" x="3" y="4" rx="2" ry="2"/>
-        <line x1="16" x2="16" y1="2" y2="6"/>
-        <line x1="8" x2="8" y1="2" y2="6"/>
-        <line x1="3" x2="21" y1="10" y2="10"/>
-      </svg>
-      <span class="profile-stat__value">{{ profile_stats.total_sessions }}</span>
-      <span class="profile-stat__label">Total Sessions</span>
-    </div>
-    <div class="profile-stat" role="listitem">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/>
-        <polyline points="16 7 22 7 22 13"/>
-      </svg>
-      <span class="profile-stat__value">{{ profile_stats.improvement }}</span>
-      <span class="profile-stat__label">Improvement</span>
-    </div>
-    <div class="profile-stat" role="listitem">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <circle cx="12" cy="12" r="10"/>
-        <polyline points="12 6 12 12 16 14"/>
-      </svg>
-      <span class="profile-stat__value">{{ profile_stats.avg_per_week }}</span>
-      <span class="profile-stat__label">Avg / Week</span>
-    </div>
-  </div>
-
-  <!-- Score trend chart -->
-  <div class="card">
-    <p class="label-caps">Score Trend</p>
-    <div class="chart" aria-label="Score trend over 10 weeks">
-      {% for val in trend %}
-      <div class="chart__col">
-        <div class="chart__bar" style="height: {{ (val / 100 * 96) | int }}px"
-             aria-label="Week {{ loop.index }}: {{ val }}">
-        </div>
-        {% if loop.index0 % 3 == 0 %}
-        <span class="chart__label">W{{ loop.index }}</span>
-        {% endif %}
+<div class="screen fade-in">
+  <div class="screen-header screen-header--dark">
+    <div class="profile-header-row">
+      <div class="profile-avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+      <div>
+        <h1 class="screen-header__title">{{ user_name }}</h1>
+        <p class="screen-header__subtitle">{{ user_email or 'No email set' }}</p>
       </div>
-      {% endfor %}
-    </div>
-    <div class="chart__axis">
-      <span>Week 1</span>
-      <span>Week 10</span>
     </div>
   </div>
+  <div class="screen-body">
 
-  <!-- Past sessions -->
-  <section aria-labelledby="sessions-heading">
-    <p class="label-caps" id="sessions-heading">Past Sessions</p>
-    <div class="session-list">
-      {% for session in past_sessions %}
-      <div class="session-item">
-        <div class="session-item__score" aria-label="Score {{ session.score }}">
-          {{ session.score }}
+    <!-- Personal info -->
+    <div class="card">
+      <p class="card__title">Personal Information</p>
+      <div style="display:flex;flex-direction:column;gap:0.875rem">
+        <div class="form-group"><label class="form-label" for="p-name">Name</label><input class="form-input" id="p-name" value="{{ user_name }}"></div>
+        <div class="form-group"><label class="form-label" for="p-email">Email</label><input class="form-input" id="p-email" type="email" value="{{ user_email }}" placeholder="your@email.com"></div>
+        <div class="form-group"><label class="form-label" for="p-lang">Native Language</label><input class="form-input" id="p-lang" value="{{ native_language }}" placeholder="e.g., Korean, Spanish"></div>
+        <div class="form-group">
+          <label class="form-label" for="p-level">English Level</label>
+          <select class="form-select" id="p-level">
+            {% for level in ['Beginner','Intermediate','Advanced','Native'] %}
+            <option {% if english_level == level %}selected{% endif %}>{{ level }}</option>
+            {% endfor %}
+          </select>
         </div>
-        <div class="session-item__body">
-          <p class="session-item__prompt">{{ session.prompt }}</p>
-          <p class="session-item__meta">{{ session.date }} &middot; {{ session.duration }}</p>
-        </div>
-        <svg class="session-item__arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <polyline points="9 18 15 12 9 6"/>
-        </svg>
       </div>
-      {% endfor %}
     </div>
-  </section>
 
+    <!-- App settings -->
+    <div class="card">
+      <p class="card__title">App Settings</p>
+      <div class="toggle-row">
+        <div class="toggle-row__text"><p class="toggle-row__label">Save recordings</p><p class="toggle-row__sub">Keep audio for future review</p></div>
+        <label class="toggle"><input type="checkbox"><span class="toggle__track"></span></label>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-row__text"><p class="toggle-row__label">High contrast mode</p><p class="toggle-row__sub">Easier to read text</p></div>
+        <label class="toggle"><input type="checkbox"><span class="toggle__track"></span></label>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-row__text"><p class="toggle-row__label">Pronunciation audio</p><p class="toggle-row__sub">Play correct pronunciation</p></div>
+        <label class="toggle"><input type="checkbox" checked><span class="toggle__track"></span></label>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-row__text"><p class="toggle-row__label">Daily reminders</p><p class="toggle-row__sub">Notifications to practise</p></div>
+        <label class="toggle"><input type="checkbox"><span class="toggle__track"></span></label>
+      </div>
+    </div>
+
+    <!-- Privacy & data -->
+    <div class="card">
+      <div class="card__title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Privacy &amp; Data
+      </div>
+      <div style="display:flex;flex-direction:column;gap:0.5rem">
+        <button class="btn btn--outline btn--full" style="justify-content:flex-start;gap:0.5rem">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+          Download my data
+        </button>
+        <button class="btn btn--warning btn--full" style="justify-content:flex-start;gap:0.5rem">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+          Delete my recordings
+        </button>
+        <button class="btn btn--danger btn--full" style="justify-content:flex-start;gap:0.5rem">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+          Delete account
+        </button>
+      </div>
+    </div>
+
+    <button class="btn btn--primary btn--full" style="font-size:1.05rem;min-height:52px">Save Changes</button>
+  </div>
 </div>
 {% endblock %}

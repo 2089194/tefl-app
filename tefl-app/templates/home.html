@@ -1,109 +1,53 @@
 {% extends "base.html" %}
 {% block title %} – Home{% endblock %}
-
 {% block content %}
-<div class="screen">
-
-  <!-- Header -->
-  <div class="screen__header">
-    <div class="brand-row">
-      <div class="brand-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
-          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-          <line x1="12" x2="12" y1="19" y2="22"/>
-        </svg>
+<div class="screen fade-in">
+  <div class="screen-header screen-header--white">
+    <h1 class="screen-header__title">Welcome back, {{ user_name }}!</h1>
+    <div class="stat-grid">
+      <div class="stat-tile stat-tile--opaque-blue">
+        <div class="stat-tile__icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4A90E2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+        <span class="stat-tile__value" style="color:var(--blue)">{{ stats.sessions_this_week }}</span>
+        <span class="stat-tile__label">Sessions</span>
       </div>
-      <h1 class="brand-name">tefl app</h1>
-    </div>
-    <p class="screen__subtitle">
-      Improve your speaking skills with AI-powered feedback. Practise pronunciation, fluency, and confidence.
-    </p>
-  </div>
-
-  <!-- Welcome card -->
-  <div class="card">
-    <p class="card__title">Welcome back, Learner!</p>
-    <p class="card__sub">You've completed {{ stats.sessions_this_week }} sessions this week. Keep it up!</p>
-    <div class="stat-row" role="list" aria-label="Weekly statistics">
-      <div class="stat" role="listitem">
-        <div class="stat__circle" aria-label="{{ stats.sessions_this_week }} sessions">
-          <span class="stat__value">{{ stats.sessions_this_week }}</span>
-        </div>
-        <span class="stat__label">Sessions</span>
+      <div class="stat-tile stat-tile--opaque-green">
+        <div class="stat-tile__icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg></div>
+        <span class="stat-tile__value" style="color:var(--green)">{{ stats.avg_score or '–' }}</span>
+        <span class="stat-tile__label">Avg Score</span>
       </div>
-      <div class="stat" role="listitem">
-        <div class="stat__circle" aria-label="Average score {{ stats.avg_score }}">
-          <span class="stat__value">{{ stats.avg_score }}</span>
-        </div>
-        <span class="stat__label">Avg Score</span>
-      </div>
-      <div class="stat" role="listitem">
-        <div class="stat__circle" aria-label="{{ stats.streak }} day streak">
-          <span class="stat__value">{{ stats.streak }}</span>
-        </div>
-        <span class="stat__label">Day Streak</span>
+      <div class="stat-tile stat-tile--opaque-amber">
+        <div class="stat-tile__icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg></div>
+        <span class="stat-tile__value" style="color:var(--amber)">{{ stats.streak }}</span>
+        <span class="stat-tile__label">Day Streak</span>
       </div>
     </div>
   </div>
 
-  <!-- Quick actions -->
-  <section aria-labelledby="quick-actions-heading">
-    <h2 id="quick-actions-heading" class="section-label">Quick Actions</h2>
+  <div class="screen-body">
+    <!-- Big record button shortcut -->
+    <div style="display:flex;justify-content:center;padding:1rem 0">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:0.75rem">
+        <a href="{{ url_for('speak') }}" class="record-btn" aria-label="Start speaking practice">
+          <div class="record-btn__pulse"></div>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+        </a>
+        <span class="record-label">Tap to Start Speaking</span>
+        <span class="record-sublabel">Speak for up to 60 seconds</span>
+      </div>
+    </div>
 
-    <a href="{{ url_for('speak') }}" class="action-card">
-      <div class="action-card__icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
-          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-          <line x1="12" x2="12" y1="19" y2="22"/>
-        </svg>
+    <!-- Suggested prompts -->
+    <p class="section-title">Suggested Prompts</p>
+    {% for prompt in prompts %}
+    <div class="prompt-card">
+      <div class="prompt-card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg></div>
+      <div class="prompt-card__body">
+        <p class="prompt-card__title">{{ prompt.title }}</p>
+        <p class="prompt-card__desc">{{ prompt.description }}</p>
       </div>
-      <div class="action-card__text">
-        <p class="action-card__title">Start Speaking Task</p>
-        <p class="action-card__sub">Record your speech and get instant feedback</p>
-      </div>
-      <svg class="action-card__arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <line x1="5" x2="19" y1="12" y2="12"/>
-        <polyline points="12 5 19 12 12 19"/>
-      </svg>
-    </a>
-
-    <a href="{{ url_for('feedback') }}" class="action-card">
-      <div class="action-card__icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
-          <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
-        </svg>
-      </div>
-      <div class="action-card__text">
-        <p class="action-card__title">View Feedback</p>
-        <p class="action-card__sub">Review transcriptions and improvement tips</p>
-      </div>
-      <svg class="action-card__arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <line x1="5" x2="19" y1="12" y2="12"/>
-        <polyline points="12 5 19 12 12 19"/>
-      </svg>
-    </a>
-
-    <a href="{{ url_for('profile') }}" class="action-card">
-      <div class="action-card__icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="18" x2="18" y1="20" y2="10"/>
-          <line x1="12" x2="12" y1="20" y2="4"/>
-          <line x1="6" x2="6" y1="20" y2="14"/>
-        </svg>
-      </div>
-      <div class="action-card__text">
-        <p class="action-card__title">Track Progress</p>
-        <p class="action-card__sub">See how your skills have improved over time</p>
-      </div>
-      <svg class="action-card__arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <line x1="5" x2="19" y1="12" y2="12"/>
-        <polyline points="12 5 19 12 12 19"/>
-      </svg>
-    </a>
-  </section>
-
+      <a href="{{ url_for('speak', prompt=prompt.title) }}" class="btn btn--primary btn--sm">Start</a>
+    </div>
+    {% endfor %}
+  </div>
 </div>
 {% endblock %}

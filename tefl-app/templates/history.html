@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %} – History{% endblock %}
+{% block content %}
+<div class="screen fade-in">
+  <div class="screen-header screen-header--white">
+    <h1 class="screen-header__title">Feedback History</h1>
+    <div style="margin-top:0.875rem;display:flex;flex-direction:column;gap:0.625rem">
+      <div class="search-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg>
+        <input class="search-input" type="text" placeholder="Search sessions…" id="search-input" oninput="filterSessions()">
+      </div>
+      <select class="form-select" id="time-filter" onchange="filterSessions()">
+        <option value="all">All time</option>
+        <option value="week">Last week</option>
+        <option value="month">Last month</option>
+      </select>
+    </div>
+  </div>
+  <div class="screen-body" id="sessions-list">
+    {% if past_sessions %}
+      {% for session in past_sessions %}
+      {% set avg = ((session.pronunciation_score + session.fluency_score + session.grammar_score) / 3) | int %}
+      <a href="{{ url_for('feedback') }}" class="history-item" data-prompt="{{ session.prompt_title }}" data-date="{{ session.date }}">
+        <div class="history-item__score {% if avg >= 85 %}history-item__score--high{% elif avg >= 65 %}history-item__score--mid{% else %}history-item__score--low{% endif %}" aria-label="Score {{ avg }}">{{ avg }}</div>
+        <div class="history-item__body">
+          <p class="history-item__prompt">{{ session.prompt_title }}</p>
+          <p class="history-item__meta">{{ session.date }}</p>
+        </div>
+        <div class="history-item__arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+      </a>
+      {% endfor %}
+    {% else %}
+      <div class="empty-state">
+        <div class="empty-state__icon" style="background:var(--bg)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <p class="empty-state__title">No sessions yet</p>
+        <p class="empty-state__sub">Start practising to see your history here</p>
+        <a href="{{ url_for('speak') }}" class="btn btn--primary">Start Practice</a>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function filterSessions(){
+  const q=document.getElementById('search-input').value.toLowerCase();
+  document.querySelectorAll('.history-item').forEach(el=>{
+    const match=el.dataset.prompt.toLowerCase().includes(q);
+    el.style.display=match?'':'none';
+  });
+}
+</script>
+{% endblock %}

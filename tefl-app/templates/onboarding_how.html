@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %} – How It Works{% endblock %}
+{% block content %}
+<div class="onboarding">
+  <h1 style="font-size:1.5rem;font-weight:700;text-align:center;margin-bottom:0.5rem">How It Works</h1>
+  <div class="how-steps" style="flex:1">
+    <div class="how-step">
+      <div class="how-step__icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+      </div>
+      <div>
+        <p class="how-step__title">Record your voice</p>
+        <p class="how-step__desc">Speak naturally about any topic or choose from our prompts</p>
+      </div>
+    </div>
+    <div class="how-step">
+      <div class="how-step__icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg>
+      </div>
+      <div>
+        <p class="how-step__title">Get instant corrections</p>
+        <p class="how-step__desc">AI analyses your pronunciation, grammar, and fluency</p>
+      </div>
+    </div>
+    <div class="how-step">
+      <div class="how-step__icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+      </div>
+      <div>
+        <p class="how-step__title">Improve over time</p>
+        <p class="how-step__desc">Track your progress and see your improvement</p>
+      </div>
+    </div>
+  </div>
+  <div class="onboarding__footer">
+    <a href="{{ url_for('onboarding_privacy') }}" class="btn btn--primary btn--full" style="min-height:52px">Continue</a>
+  </div>
+</div>
+{% endblock %}

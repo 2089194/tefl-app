@@ -1,11 +1,11 @@
-# tefl app – Flask Application
+# SpeakEasy – Flask Application
 
 AI-powered spoken English feedback tool for TEFL learners.
 
 ## Project Structure
 
 ```
-tefl app/
+speakeasy/
 ├── app.py                  # Flask routes & API stubs
 ├── requirements.txt
 ├── templates/

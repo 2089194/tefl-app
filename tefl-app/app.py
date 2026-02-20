@@ -4,127 +4,93 @@ import os
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
 
-# ---------------------------------------------------------------------------
-# Routes – one per screen, mirroring the wireframe structure
-# ---------------------------------------------------------------------------
+# ── Shared data ──────────────────────────────────────────────
+PROMPTS = [
+    {"title": "Describe your weekend",       "description": "Talk about what you did last weekend"},
+    {"title": "Talk about your studies",     "description": "Share about your academic interests"},
+    {"title": "Describe a recent challenge", "description": "Explain a difficulty you overcame"},
+]
 
+PLACEHOLDER_FEEDBACK = {
+    "prompt_title":    "Describe your weekend",
+    "transcript":      "Last weekend I go to the park with my friend. We have very good time. The weather was beautiful and we take many photos.",
+    "pronunciation":   76,
+    "fluency":         80,
+    "grammar":         68,
+    "pronunciation_items": [
+        {"word": "beautiful",    "issue": "Stress on wrong syllable", "correction": "BEAU-ti-ful",     "phonetic": "/ˈbjuːtɪfəl/"},
+        {"word": "comfortable",  "issue": "Missing syllable",          "correction": "COM-for-ta-ble",  "phonetic": "/ˈkʌmfətəbəl/"},
+    ],
+    "grammar_items": [
+        {"incorrect": "I go to the park",     "correct": "I went to the park",       "explanation": "Use past tense when describing past events.",               "example": "Yesterday, I walked to school."},
+        {"incorrect": "We have very good time","correct": "We had a very good time",  "explanation": 'Past tense verb and article "a" are needed.',              "example": "They had a great party."},
+    ],
+    "filler_words":    ["um", "like"],
+    "improved_version":"Last weekend, I went to the park with my friend. We had a wonderful time.",
+    "improved_full":   "Last weekend, I went to the park with my friend. We had a very good time.\nThe weather was beautiful, and we took many photos.\nIt was a perfect way to spend a relaxing afternoon.",
+}
+
+PAST_SESSIONS = [
+    {"prompt_title": "Describe your weekend",       "date": "18 Feb 2026", "pronunciation_score": 82, "fluency_score": 75, "grammar_score": 68},
+    {"prompt_title": "Talk about your studies",     "date": "17 Feb 2026", "pronunciation_score": 78, "fluency_score": 80, "grammar_score": 72},
+    {"prompt_title": "Describe a recent challenge", "date": "16 Feb 2026", "pronunciation_score": 74, "fluency_score": 71, "grammar_score": 75},
+]
+
+# ── Onboarding ────────────────────────────────────────────────
+@app.route("/onboarding/")
+def onboarding_welcome():
+    return render_template("onboarding_welcome.html", show_nav=False)
+
+@app.route("/onboarding/how-it-works")
+def onboarding_how():
+    return render_template("onboarding_how.html", show_nav=False)
+
+@app.route("/onboarding/privacy")
+def onboarding_privacy():
+    return render_template("onboarding_privacy.html", show_nav=False)
+
+# ── Main app screens ──────────────────────────────────────────
 @app.route("/")
 def index():
-    """Home screen – stats overview and quick actions."""
-    # Placeholder stats; will be replaced with real DB queries
     stats = {
-        "sessions_this_week": 12,
-        "avg_score": 78,
-        "streak": 5,
+        "sessions_this_week": len(PAST_SESSIONS),
+        "avg_score": int(sum((s["pronunciation_score"]+s["fluency_score"]+s["grammar_score"])/3 for s in PAST_SESSIONS) / len(PAST_SESSIONS)) if PAST_SESSIONS else 0,
+        "streak": min(len(PAST_SESSIONS), 7),
     }
-    return render_template("home.html", stats=stats, active="home")
-
+    return render_template("home.html", stats=stats, prompts=PROMPTS, user_name="Learner", show_nav=True, active="home")
 
 @app.route("/speak")
 def speak():
-    """Speaking task screen – prompt + recorder."""
-    prompt = "Describe your favourite place to visit and explain why it is special to you."
-    return render_template("speaking.html", prompt=prompt, active="speaking")
-
+    prompt_title = request.args.get("prompt", "Free Practice")
+    return render_template("speaking.html", prompt_title=prompt_title, show_nav=True, active="speaking")
 
 @app.route("/feedback")
 def feedback():
-    """Feedback screen – scores, annotated transcript, suggestions."""
-    # Placeholder feedback data; will be replaced with real session results
-    feedback_data = {
-        "overall": 82,
-        "pronunciation": 76,
-        "fluency": 88,
-        "confidence": 80,
-        "transcript": [
-            {"text": "My favourite place to visit is the ", "flag": None},
-            {"text": "beach", "flag": "good"},
-            {"text": " near my hometown. It is special because the ", "flag": None},
-            {"text": "sunset", "flag": "needs_work"},
-            {"text": " views are amazing and the sound of the waves is very ", "flag": None},
-            {"text": "relaxing", "flag": "needs_work"},
-            {"text": ".", "flag": None},
-        ],
-        "suggestions": [
-            {
-                "type": "tip",
-                "title": "Stress the right syllables",
-                "body": 'Try emphasising "SUNset" and "reLAXing" for clearer pronunciation.',
-            },
-            {
-                "type": "good",
-                "title": "Good pacing",
-                "body": "Your speaking pace was well-controlled. Keep this up!",
-            },
-            {
-                "type": "warning",
-                "title": "Reduce filler words",
-                "body": 'You used "um" 3 times. Try pausing silently instead.',
-            },
-        ],
-    }
-    return render_template("feedback.html", feedback=feedback_data, active="feedback")
+    return render_template("feedback.html", feedback=PLACEHOLDER_FEEDBACK, show_nav=True, active="feedback")
 
+@app.route("/history")
+def history():
+    return render_template("history.html", past_sessions=PAST_SESSIONS, show_nav=True, active="history")
 
 @app.route("/profile")
 def profile():
-    """Profile & progress screen – stats, chart, session history."""
-    past_sessions = [
-        {"date": "Feb 18", "prompt": "Describe your favourite place...", "score": 82, "duration": "0:45"},
-        {"date": "Feb 17", "prompt": "Talk about a recent challenge...", "score": 75, "duration": "1:02"},
-        {"date": "Feb 16", "prompt": "Explain a hobby you enjoy...", "score": 79, "duration": "0:38"},
-        {"date": "Feb 15", "prompt": "Describe your daily routine...", "score": 68, "duration": "0:55"},
-        {"date": "Feb 14", "prompt": "Tell us about your hometown...", "score": 71, "duration": "0:41"},
-    ]
-    trend = [45, 52, 58, 55, 62, 68, 71, 75, 79, 82]
-    profile_stats = {
-        "total_sessions": 32,
-        "improvement": "+14%",
-        "avg_per_week": "24m",
-        "member_since": "Jan 2026",
-    }
-    return render_template(
-        "profile.html",
-        past_sessions=past_sessions,
-        trend=trend,
-        profile_stats=profile_stats,
-        active="profile",
-    )
+    return render_template("profile.html",
+        user_name="Learner", user_email="", native_language="Korean",
+        english_level="Intermediate", show_nav=True, active="profile")
 
-
-# ---------------------------------------------------------------------------
-# API stubs – will be wired to Whisper + Ollama in later sprints
-# ---------------------------------------------------------------------------
-
+# ── API stubs (Sprint 2: wire to Whisper + Ollama) ───────────
 @app.route("/api/transcribe", methods=["POST"])
 def api_transcribe():
-    """
-    Stub: receives audio blob, returns transcript.
-    Sprint 2: wire to Whisper STT.
-    """
-    # audio = request.files.get("audio")
-    return jsonify({"transcript": "Placeholder transcript from Whisper.", "status": "ok"})
-
+    return jsonify({"transcript": "Placeholder transcript — Whisper STT coming in Sprint 2.", "status": "ok"})
 
 @app.route("/api/feedback", methods=["POST"])
 def api_feedback():
-    """
-    Stub: receives transcript, returns AI feedback JSON.
-    Sprint 2: wire to Ollama feedback engine.
-    """
-    data = request.get_json(silent=True) or {}
-    transcript = data.get("transcript", "")
     return jsonify({
-        "overall": 82,
-        "pronunciation": 76,
-        "fluency": 88,
-        "confidence": 80,
-        "suggestions": [
-            {"type": "tip", "title": "Stress the right syllables", "body": "..."},
-        ],
-        "status": "ok",
+        "pronunciation": 76, "fluency": 80, "grammar": 68,
+        "filler_words": ["um", "like"],
+        "improved_version": "Placeholder improved version.",
+        "status": "ok"
     })
-
 
 if __name__ == "__main__":
     app.run(debug=True)
