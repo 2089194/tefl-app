@@ -1,0 +1,7 @@
+flask>=3.0.0
+python-dotenv>=1.0.0
+# Sprint 2 additions (uncomment when ready):
+# openai-whisper
+# psycopg2-binary
+# flask-sqlalchemy
+# flask-login

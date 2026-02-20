@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %} – Speaking Task{% endblock %}
+
+{% block content %}
+<div class="screen">
+
+  <!-- Header -->
+  <div class="screen__header">
+    <h1 class="screen__title">Speaking Task</h1>
+    <p class="screen__subtitle">Read the prompt below, then tap the microphone to record your speech.</p>
+  </div>
+
+  <!-- Prompt card -->
+  <div class="card">
+    <p class="label-caps">Today's Prompt</p>
+    <p class="prompt-text">"{{ prompt }}"</p>
+    <button class="tts-hint" id="tts-btn" aria-label="Hear example pronunciation">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+        <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+      </svg>
+      <span>Tap to hear example pronunciation</span>
+    </button>
+  </div>
+
+  <!-- Recording area -->
+  <div class="recorder" id="recorder">
+
+    <!-- Waveform visualiser -->
+    <div class="waveform" id="waveform" aria-live="polite" aria-label="Audio waveform">
+      <span class="waveform__placeholder" id="waveform-placeholder">Audio waveform appears here</span>
+      <div class="waveform__bars" id="waveform-bars" hidden>
+        {% for i in range(20) %}
+        <div class="waveform__bar" style="--i: {{ i }}"></div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Timer -->
+    <p class="recorder__timer" id="timer" aria-live="polite" aria-atomic="true">0:00</p>
+
+    <!-- Record button -->
+    <button
+      class="record-btn"
+      id="record-btn"
+      aria-label="Start recording"
+      data-state="idle">
+      <!-- Mic icon (idle / done) -->
+      <svg class="record-btn__icon record-btn__icon--mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+        <line x1="12" x2="12" y1="19" y2="22"/>
+      </svg>
+      <!-- MicOff icon (recording) -->
+      <svg class="record-btn__icon record-btn__icon--micoff" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <line x1="2" x2="22" y1="2" y2="22"/>
+        <path d="M18.89 13.23A7.12 7.12 0 0 0 19 12v-2"/>
+        <path d="M5 10v2a7 7 0 0 0 12 5"/>
+        <path d="M15 9.34V5a3 3 0 0 0-5.68-1.33"/>
+        <path d="M9 9v3a3 3 0 0 0 5.12 2.12"/>
+        <line x1="12" x2="12" y1="19" y2="22"/>
+      </svg>
+    </button>
+
+    <p class="recorder__hint" id="recorder-hint">Tap to start recording</p>
+  </div>
+
+  <!-- Results preview (shown after recording) -->
+  <div class="results-preview card" id="results-preview" hidden>
+    <p class="label-caps">Quick Result</p>
+    <div class="quick-scores" id="quick-scores" role="group" aria-label="Quick scores">
+      <div class="quick-score">
+        <span class="quick-score__value" id="qs-overall">–</span>
+        <span class="quick-score__label">Overall</span>
+      </div>
+      <div class="quick-score__divider" aria-hidden="true"></div>
+      <div class="quick-score">
+        <span class="quick-score__value" id="qs-pronunciation">–</span>
+        <span class="quick-score__label">Pronunciation</span>
+      </div>
+      <div class="quick-score__divider" aria-hidden="true"></div>
+      <div class="quick-score">
+        <span class="quick-score__value" id="qs-fluency">–</span>
+        <span class="quick-score__label">Fluency</span>
+      </div>
+    </div>
+    <div class="results-actions">
+      <button class="btn btn--secondary" id="retry-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+          <path d="M3 3v5h5"/>
+        </svg>
+        Try Again
+      </button>
+      <a href="{{ url_for('feedback') }}" class="btn btn--primary">View Feedback</a>
+    </div>
+  </div>
+
+  <!-- Consent notice (NFR-02) -->
+  <div class="consent-notice" id="consent-notice" role="note">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="12" x2="12" y1="8" y2="12"/>
+      <line x1="12" x2="12.01" y1="16" y2="16"/>
+    </svg>
+    <p>Your recording is processed locally. <a href="#">Privacy policy</a></p>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/recorder.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block title %} – Feedback{% endblock %}
+
+{% block content %}
+<div class="screen">
+
+  <!-- Header -->
+  <div class="screen__header">
+    <h1 class="screen__title">Feedback</h1>
+    <p class="screen__subtitle">Detailed analysis of your latest speaking session.</p>
+  </div>
+
+  <!-- Score overview -->
+  <div class="card">
+    <p class="label-caps">Overall Score</p>
+    <div class="score-overview">
+      <div class="score-circle" aria-label="Overall score {{ feedback.overall }} out of 100">
+        <span class="score-circle__value">{{ feedback.overall }}</span>
+      </div>
+      <div class="score-bars">
+
+        <div class="score-bar">
+          <div class="score-bar__labels">
+            <span>Pronunciation</span>
+            <span class="score-bar__number">{{ feedback.pronunciation }}/100</span>
+          </div>
+          <div class="score-bar__track" role="progressbar"
+               aria-valuenow="{{ feedback.pronunciation }}"
+               aria-valuemin="0" aria-valuemax="100"
+               aria-label="Pronunciation {{ feedback.pronunciation }} out of 100">
+            <div class="score-bar__fill" style="width: {{ feedback.pronunciation }}%"></div>
+          </div>
+        </div>
+
+        <div class="score-bar">
+          <div class="score-bar__labels">
+            <span>Fluency</span>
+            <span class="score-bar__number">{{ feedback.fluency }}/100</span>
+          </div>
+          <div class="score-bar__track" role="progressbar"
+               aria-valuenow="{{ feedback.fluency }}"
+               aria-valuemin="0" aria-valuemax="100"
+               aria-label="Fluency {{ feedback.fluency }} out of 100">
+            <div class="score-bar__fill" style="width: {{ feedback.fluency }}%"></div>
+          </div>
+        </div>
+
+        <div class="score-bar">
+          <div class="score-bar__labels">
+            <span>Confidence</span>
+            <span class="score-bar__number">{{ feedback.confidence }}/100</span>
+          </div>
+          <div class="score-bar__track" role="progressbar"
+               aria-valuenow="{{ feedback.confidence }}"
+               aria-valuemin="0" aria-valuemax="100"
+               aria-label="Confidence {{ feedback.confidence }} out of 100">
+            <div class="score-bar__fill" style="width: {{ feedback.confidence }}%"></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Annotated transcription -->
+  <div class="card">
+    <div class="card__row">
+      <p class="label-caps">Transcription</p>
+      <button class="expand-btn" aria-expanded="true" aria-controls="transcript-body" id="transcript-toggle">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+    </div>
+    <div class="transcript" id="transcript-body">
+      <p class="transcript__text">
+        {% for segment in feedback.transcript %}
+          {% if segment.flag == 'good' %}
+            <mark class="transcript__mark transcript__mark--good" title="Good">{{ segment.text }}</mark>
+          {% elif segment.flag == 'needs_work' %}
+            <mark class="transcript__mark transcript__mark--warn" title="Needs work">{{ segment.text }}</mark>
+          {% else %}
+            {{ segment.text }}
+          {% endif %}
+        {% endfor %}
+      </p>
+      <div class="transcript__legend" aria-label="Legend">
+        <span class="legend-item">
+          <span class="legend-item__dot legend-item__dot--good" aria-hidden="true"></span>Good
+        </span>
+        <span class="legend-item">
+          <span class="legend-item__dot legend-item__dot--warn" aria-hidden="true"></span>Needs work
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Suggestions -->
+  <section aria-labelledby="suggestions-heading">
+    <p class="label-caps" id="suggestions-heading">Suggestions</p>
+    <div class="suggestions">
+      {% for s in feedback.suggestions %}
+      <div class="suggestion suggestion--{{ s.type }}" role="article">
+        <div class="suggestion__icon" aria-hidden="true">
+          {% if s.type == 'tip' %}
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="9" x2="15" y1="2" y2="2"/><path d="M12 2v7"/>
+            <path d="M4.22 10.22a6 6 0 0 0 11.56 2M12 22v-4"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+          {% elif s.type == 'good' %}
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+            <polyline points="22 4 12 14.01 9 11.01"/>
+          </svg>
+          {% else %}
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" x2="12" y1="8" y2="12"/>
+            <line x1="12" x2="12.01" y1="16" y2="16"/>
+          </svg>
+          {% endif %}
+        </div>
+        <div class="suggestion__body">
+          <p class="suggestion__title">{{ s.title }}</p>
+          <p class="suggestion__text">{{ s.body }}</p>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Transcript expand/collapse toggle
+  const toggle = document.getElementById('transcript-toggle');
+  const body = document.getElementById('transcript-body');
+  if (toggle && body) {
+    toggle.addEventListener('click', () => {
+      const expanded = toggle.getAttribute('aria-expanded') === 'true';
+      toggle.setAttribute('aria-expanded', String(!expanded));
+      body.hidden = expanded;
+    });
+  }
+</script>
+{% endblock %}
