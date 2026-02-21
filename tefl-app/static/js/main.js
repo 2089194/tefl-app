@@ -1,4 +1,4 @@
-// SpeakEasy – main.js
+// tefl-app – main.js
 // General UI utilities shared across all screens.
 
 document.addEventListener("DOMContentLoaded", () => {
