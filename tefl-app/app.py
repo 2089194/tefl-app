@@ -1,11 +1,13 @@
 """
-app.py – tefl-app Flask application
-Sprint 2: Whisper STT integrated into /api/transcribe
+app.py – tefll-app Flask application
+Sprint 3: Ollama AI feedback integrated into /api/feedback
+          Real transcript + scores passed through to feedback screen
 """
 
 import os
+import json
 import logging
-from flask import Flask, render_template, request, jsonify, redirect, url_for
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -15,41 +17,37 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
 
-# ── Whisper model (lazy-loaded on first request) ──────────────
-# Set WHISPER_MODEL=tiny in .env for faster loading during dev
 WHISPER_MODEL = os.environ.get("WHISPER_MODEL", "base")
+OLLAMA_MODEL  = os.environ.get("OLLAMA_MODEL",  "llama3.2")
 
-# ── Shared data (Sprint 3: replace with DB queries) ──────────
+# ── Static data (Sprint 4: replace with DB) ───────────────────
 PROMPTS = [
     {"title": "Describe your weekend",       "description": "Talk about what you did last weekend"},
     {"title": "Talk about your studies",     "description": "Share about your academic interests"},
     {"title": "Describe a recent challenge", "description": "Explain a difficulty you overcame"},
 ]
 
-PLACEHOLDER_FEEDBACK = {
-    "prompt_title":   "Describe your weekend",
-    "transcript":     "Last weekend I go to the park with my friend. We have very good time. The weather was beautiful and we take many photos.",
-    "pronunciation":  76,
-    "fluency":        80,
-    "grammar":        68,
-    "pronunciation_items": [
-        {"word": "beautiful",   "issue": "Stress on wrong syllable", "correction": "BEAU-ti-ful",    "phonetic": "/ˈbjuːtɪfəl/"},
-        {"word": "comfortable", "issue": "Missing syllable",          "correction": "COM-for-ta-ble", "phonetic": "/ˈkʌmfətəbəl/"},
-    ],
-    "grammar_items": [
-        {"incorrect": "I go to the park",      "correct": "I went to the park",      "explanation": "Use past tense when describing past events.",       "example": "Yesterday, I walked to school."},
-        {"incorrect": "We have very good time", "correct": "We had a very good time", "explanation": 'Past tense verb and article "a" are needed.',       "example": "They had a great party."},
-    ],
-    "filler_words":    ["um", "like"],
-    "improved_version": "Last weekend, I went to the park with my friend. We had a wonderful time.",
-    "improved_full":    "Last weekend, I went to the park with my friend. We had a very good time.\nThe weather was beautiful, and we took many photos.\nIt was a perfect way to spend a relaxing afternoon.",
-}
-
 PAST_SESSIONS = [
     {"prompt_title": "Describe your weekend",       "date": "18 Feb 2026", "pronunciation_score": 82, "fluency_score": 75, "grammar_score": 68},
     {"prompt_title": "Talk about your studies",     "date": "17 Feb 2026", "pronunciation_score": 78, "fluency_score": 80, "grammar_score": 72},
     {"prompt_title": "Describe a recent challenge", "date": "16 Feb 2026", "pronunciation_score": 74, "fluency_score": 71, "grammar_score": 75},
 ]
+
+# ── Fallback feedback (shown if Ollama is unavailable) ────────
+FALLBACK_FEEDBACK = {
+    "prompt_title":        "Free Practice",
+    "transcript":          "No transcript available.",
+    "pronunciation":       0,
+    "fluency":             0,
+    "grammar":             0,
+    "overall_comment":     "AI feedback is currently unavailable. Please ensure Ollama is running.",
+    "pronunciation_items": [],
+    "grammar_items":       [],
+    "filler_words":        [],
+    "improved_version":    "",
+    "improved_full":       "",
+    "ollama_ok":           False,
+}
 
 # ── Onboarding ────────────────────────────────────────────────
 @app.route("/onboarding/")
@@ -86,8 +84,29 @@ def speak():
 
 @app.route("/feedback")
 def feedback():
-    # Sprint 3: pull real session data from DB using session ID
-    return render_template("feedback.html", feedback=PLACEHOLDER_FEEDBACK,
+    # Pull real feedback data from session if available
+    feedback_data = session.pop("last_feedback", None)
+
+    if feedback_data:
+        # Map API response keys to template keys
+        display = {
+            "prompt_title":        feedback_data.get("prompt_title", "Free Practice"),
+            "transcript":          feedback_data.get("transcript", ""),
+            "pronunciation":       feedback_data.get("pronunciation_score", 0),
+            "fluency":             feedback_data.get("fluency_score", 0),
+            "grammar":             feedback_data.get("grammar_score", 0),
+            "overall_comment":     feedback_data.get("overall_comment", ""),
+            "pronunciation_items": feedback_data.get("pronunciation_items", []),
+            "grammar_items":       feedback_data.get("grammar_items", []),
+            "filler_words":        feedback_data.get("filler_words", []),
+            "improved_version":    feedback_data.get("improved_version", ""),
+            "improved_full":       feedback_data.get("improved_full", ""),
+            "ollama_ok":           feedback_data.get("ollama_ok", False),
+        }
+    else:
+        display = FALLBACK_FEEDBACK
+
+    return render_template("feedback.html", feedback=display,
                            show_nav=True, active="feedback")
 
 @app.route("/history")
@@ -104,21 +123,14 @@ def profile():
 # ── API: Transcription (Whisper) ──────────────────────────────
 @app.route("/api/transcribe", methods=["POST"])
 def api_transcribe():
-    """
-    Receives audio blob from the browser recorder.
-    Returns JSON: { transcript, language, whisper_available, error }
-    """
     audio_file = request.files.get("audio")
-
     if not audio_file:
         return jsonify({"error": "No audio file received", "transcript": ""}), 400
 
     audio_bytes = audio_file.read()
-
     if len(audio_bytes) < 1000:
         return jsonify({"error": "Audio too short", "transcript": ""}), 400
 
-    # Try to use Whisper; fall back gracefully if not installed
     try:
         from whisper_stt import transcribe_audio, get_model_name
         model_name = get_model_name()
@@ -126,84 +138,104 @@ def api_transcribe():
         result = transcribe_audio(audio_bytes, model_name=model_name)
 
         if result["error"]:
-            logger.error(f"Whisper error: {result['error']}")
             return jsonify({
-                "transcript": "",
-                "language": "unknown",
-                "whisper_available": True,
-                "error": result["error"],
+                "transcript": "", "language": "unknown",
+                "whisper_available": True, "error": result["error"],
             }), 500
 
-        logger.info(f"Transcript: {result['transcript'][:100]}...")
+        logger.info(f"Transcript: {result['transcript'][:120]}")
         return jsonify({
-            "transcript":         result["transcript"],
-            "language":           result["language"],
-            "segments":           result["segments"],
-            "whisper_available":  True,
-            "error":              None,
+            "transcript":        result["transcript"],
+            "language":          result["language"],
+            "segments":          result["segments"],
+            "whisper_available": True,
+            "error":             None,
         })
 
     except RuntimeError as e:
-        # Whisper not installed
-        logger.warning(f"Whisper not available: {e}")
         return jsonify({
-            "transcript":        "Whisper is not installed. Run: pip install openai-whisper",
-            "language":          "unknown",
-            "whisper_available": False,
-            "error":             str(e),
+            "transcript": "", "language": "unknown",
+            "whisper_available": False, "error": str(e),
         }), 503
 
     except Exception as e:
-        logger.error(f"Unexpected transcription error: {e}")
+        logger.error(f"Transcription error: {e}")
         return jsonify({
-            "transcript": "",
-            "language":   "unknown",
-            "whisper_available": True,
-            "error": str(e),
+            "transcript": "", "language": "unknown",
+            "whisper_available": True, "error": str(e),
         }), 500
 
 
-# ── API: Feedback (Sprint 3: wire to Ollama) ──────────────────
+# ── API: Feedback (Ollama) ────────────────────────────────────
 @app.route("/api/feedback", methods=["POST"])
 def api_feedback():
     """
-    Receives transcript JSON.
-    Returns placeholder scores for now.
-    Sprint 3: pipe transcript through Ollama for real AI feedback.
+    Receives { transcript, prompt_title } JSON.
+    Sends transcript to Ollama, returns structured feedback JSON.
+    Also stores result in Flask session so /feedback can display it.
     """
-    data = request.get_json(silent=True) or {}
-    transcript = data.get("transcript", "")
-    logger.info(f"Feedback requested for transcript: {transcript[:80]}...")
+    data         = request.get_json(silent=True) or {}
+    transcript   = data.get("transcript", "").strip()
+    prompt_title = data.get("prompt_title", "Free Practice")
 
-    # Placeholder — Sprint 3 replaces this with Ollama
+    logger.info(f"Feedback requested for: '{transcript[:80]}...'")
+
+    if not transcript:
+        return jsonify({"error": "No transcript provided"}), 400
+
+    try:
+        from ollama_feedback import generate_feedback
+        feedback = generate_feedback(transcript)
+    except Exception as e:
+        logger.error(f"Ollama error: {e}")
+        feedback = {
+            "pronunciation_score": 0, "fluency_score": 0, "grammar_score": 0,
+            "overall_comment": "AI feedback unavailable.",
+            "pronunciation_items": [], "grammar_items": [],
+            "filler_words": [], "improved_version": transcript,
+            "improved_full": transcript,
+            "transcript": transcript, "ollama_ok": False, "error": str(e),
+        }
+
+    feedback["prompt_title"] = prompt_title
+
+    # Store in session so /feedback route can display it
+    session["last_feedback"] = feedback
+
     return jsonify({
-        "pronunciation":   76,
-        "fluency":         80,
-        "grammar":         68,
-        "filler_words":    ["um", "like"],
-        "improved_version": "Placeholder — Ollama feedback coming in Sprint 3.",
-        "status":          "ok",
-        "transcript":      transcript,
+        "status":              "ok",
+        "pronunciation_score": feedback.get("pronunciation_score", 0),
+        "fluency_score":       feedback.get("fluency_score", 0),
+        "grammar_score":       feedback.get("grammar_score", 0),
+        "ollama_ok":           feedback.get("ollama_ok", False),
+        "error":               feedback.get("error"),
     })
 
 
-# ── Dev helper: check Whisper status ─────────────────────────
+# ── API: Status ───────────────────────────────────────────────
 @app.route("/api/status")
 def api_status():
-    """Quick endpoint to check if Whisper is installed and working."""
+    """Check Whisper and Ollama status."""
+    # Whisper
     try:
         import whisper
-        return jsonify({
-            "whisper_installed": True,
-            "model_configured":  WHISPER_MODEL,
-            "ffmpeg_note":       "Make sure ffmpeg is installed and on your PATH",
-        })
+        whisper_ok = True
     except ImportError:
-        return jsonify({
-            "whisper_installed": False,
-            "install_command":   "pip install openai-whisper",
-            "ffmpeg_note":       "Also install ffmpeg: winget install ffmpeg",
-        })
+        whisper_ok = False
+
+    # Ollama
+    try:
+        from ollama_feedback import check_ollama
+        ollama_status = check_ollama()
+    except Exception as e:
+        ollama_status = {"ollama_running": False, "error": str(e)}
+
+    return jsonify({
+        "whisper_installed":  whisper_ok,
+        "whisper_model":      WHISPER_MODEL,
+        "ffmpeg_note":        "Run 'ffmpeg -version' to verify",
+        **ollama_status,
+    })
 
 
 if __name__ == "__main__":
