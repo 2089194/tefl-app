@@ -1,7 +1,22 @@
+# Web framework
 flask>=3.0.0
 python-dotenv>=1.0.0
-# Sprint 2 additions (uncomment when ready):
-# openai-whisper
-# psycopg2-binary
-# flask-sqlalchemy
-# flask-login
+
+# Sprint 2 - Speech-to-text
+# Option A: whisper-large-v3-turbo via Hugging Face (recommended)
+transformers>=4.40.0
+torch>=2.0.0
+# Option B: standard openai-whisper (fallback if transformers unavailable)
+openai-whisper
+
+# Sprint 3 - AI feedback
+# (Ollama runs as a separate process, no Python package needed)
+
+# Sprint 4 - Database
+flask-sqlalchemy>=3.1.0
+psycopg2-binary>=2.9.9
+
+# NOTE: System dependencies required:
+#   ffmpeg  - for audio decoding (C:\ffmpeg\bin must be on PATH)
+#   Ollama  - local LLM server (https://ollama.com)
+#   PostgreSQL - database server (https://www.postgresql.org/download/)

@@ -1,11 +1,9 @@
 """
-app.py – tefll-app Flask application
-Sprint 3: Ollama AI feedback integrated into /api/feedback
-          Real transcript + scores passed through to feedback screen
+app.py – TEFL App Flask application
+Sprint 4: PostgreSQL database integrated via SQLAlchemy
 """
 
 import os
-import json
 import logging
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from dotenv import load_dotenv
@@ -17,23 +15,25 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
 
+# Database configuration
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
+    "DATABASE_URL",
+    "postgresql://tefl_app:tefl_app@localhost:5432/tefl_app"
+)
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+from models import db
+db.init_app(app)
+
 WHISPER_MODEL = os.environ.get("WHISPER_MODEL", "base")
 OLLAMA_MODEL  = os.environ.get("OLLAMA_MODEL",  "llama3.2")
 
-# ── Static data (Sprint 4: replace with DB) ───────────────────
 PROMPTS = [
     {"title": "Describe your weekend",       "description": "Talk about what you did last weekend"},
     {"title": "Talk about your studies",     "description": "Share about your academic interests"},
     {"title": "Describe a recent challenge", "description": "Explain a difficulty you overcame"},
 ]
 
-PAST_SESSIONS = [
-    {"prompt_title": "Describe your weekend",       "date": "18 Feb 2026", "pronunciation_score": 82, "fluency_score": 75, "grammar_score": 68},
-    {"prompt_title": "Talk about your studies",     "date": "17 Feb 2026", "pronunciation_score": 78, "fluency_score": 80, "grammar_score": 72},
-    {"prompt_title": "Describe a recent challenge", "date": "16 Feb 2026", "pronunciation_score": 74, "fluency_score": 71, "grammar_score": 75},
-]
-
-# ── Fallback feedback (shown if Ollama is unavailable) ────────
 FALLBACK_FEEDBACK = {
     "prompt_title":        "Free Practice",
     "transcript":          "No transcript available.",
@@ -49,7 +49,19 @@ FALLBACK_FEEDBACK = {
     "ollama_ok":           False,
 }
 
-# ── Onboarding ────────────────────────────────────────────────
+# DB init on startup
+def init_db():
+    with app.app_context():
+        try:
+            db.create_all()
+            from db_helpers import get_or_create_default_user
+            get_or_create_default_user()
+            logger.info("Database ready.")
+        except Exception as e:
+            logger.warning(f"Database not available: {e}")
+            logger.warning("Running without database — history will not be saved.")
+
+# Onboarding
 @app.route("/onboarding/")
 def onboarding_welcome():
     return render_template("onboarding_welcome.html", show_nav=False)
@@ -62,17 +74,15 @@ def onboarding_how():
 def onboarding_privacy():
     return render_template("onboarding_privacy.html", show_nav=False)
 
-# ── Main screens ──────────────────────────────────────────────
+# Main screens
 @app.route("/")
 def index():
-    stats = {
-        "sessions_this_week": len(PAST_SESSIONS),
-        "avg_score": int(sum(
-            (s["pronunciation_score"] + s["fluency_score"] + s["grammar_score"]) / 3
-            for s in PAST_SESSIONS
-        ) / len(PAST_SESSIONS)) if PAST_SESSIONS else 0,
-        "streak": min(len(PAST_SESSIONS), 7),
-    }
+    try:
+        from db_helpers import get_home_stats
+        stats = get_home_stats()
+    except Exception:
+        stats = {"sessions_this_week": 0, "avg_score": 0, "streak": 0}
+
     return render_template("home.html", stats=stats, prompts=PROMPTS,
                            user_name="Learner", show_nav=True, active="home")
 
@@ -84,11 +94,21 @@ def speak():
 
 @app.route("/feedback")
 def feedback():
-    # Pull real feedback data from session if available
-    feedback_data = session.pop("last_feedback", None)
+    # Check for a session_id in the URL (coming from history screen)
+    session_id = request.args.get("session_id")
+    if session_id:
+        try:
+            from db_helpers import get_session_by_id
+            s = get_session_by_id(int(session_id))
+            if s:
+                return render_template("feedback.html", feedback=s.to_feedback_dict(),
+                                       show_nav=True, active="feedback")
+        except Exception as e:
+            logger.error(f"Error loading session {session_id}: {e}")
 
+    # Otherwise pull from Flask session (set by /api/feedback)
+    feedback_data = session.pop("last_feedback", None)
     if feedback_data:
-        # Map API response keys to template keys
         display = {
             "prompt_title":        feedback_data.get("prompt_title", "Free Practice"),
             "transcript":          feedback_data.get("transcript", ""),
@@ -111,7 +131,14 @@ def feedback():
 
 @app.route("/history")
 def history():
-    return render_template("history.html", past_sessions=PAST_SESSIONS,
+    try:
+        from db_helpers import get_recent_sessions
+        past_sessions = get_recent_sessions()
+    except Exception as e:
+        logger.warning(f"Could not load history from DB: {e}")
+        past_sessions = []
+
+    return render_template("history.html", past_sessions=past_sessions,
                            show_nav=True, active="history")
 
 @app.route("/profile")
@@ -120,7 +147,7 @@ def profile():
         user_name="Learner", user_email="", native_language="Korean",
         english_level="Intermediate", show_nav=True, active="profile")
 
-# ── API: Transcription (Whisper) ──────────────────────────────
+# API: Transcription (Whisper)
 @app.route("/api/transcribe", methods=["POST"])
 def api_transcribe():
     audio_file = request.files.get("audio")
@@ -133,9 +160,7 @@ def api_transcribe():
 
     try:
         from whisper_stt import transcribe_audio, get_model_name
-        model_name = get_model_name()
-        logger.info(f"Transcribing {len(audio_bytes)} bytes with Whisper ({model_name})...")
-        result = transcribe_audio(audio_bytes, model_name=model_name)
+        result = transcribe_audio(audio_bytes, model_name=get_model_name())
 
         if result["error"]:
             return jsonify({
@@ -166,22 +191,17 @@ def api_transcribe():
         }), 500
 
 
-# ── API: Feedback (Ollama) ────────────────────────────────────
+# API: Feedback (Ollama + DB save)
 @app.route("/api/feedback", methods=["POST"])
 def api_feedback():
-    """
-    Receives { transcript, prompt_title } JSON.
-    Sends transcript to Ollama, returns structured feedback JSON.
-    Also stores result in Flask session so /feedback can display it.
-    """
     data         = request.get_json(silent=True) or {}
     transcript   = data.get("transcript", "").strip()
     prompt_title = data.get("prompt_title", "Free Practice")
 
-    logger.info(f"Feedback requested for: '{transcript[:80]}...'")
-
     if not transcript:
         return jsonify({"error": "No transcript provided"}), 400
+
+    logger.info(f"Feedback requested for: '{transcript[:80]}...'")
 
     try:
         from ollama_feedback import generate_feedback
@@ -198,12 +218,29 @@ def api_feedback():
         }
 
     feedback["prompt_title"] = prompt_title
+    feedback["language"]     = data.get("language", "en")
 
-    # Store in session so /feedback route can display it
-    session["last_feedback"] = feedback
+    # Save to database
+    saved_session_id = None
+    try:
+        from db_helpers import save_session
+        saved = save_session(feedback)
+        saved_session_id = saved.id
+        logger.info(f"Session saved to DB with id={saved_session_id}")
+    except Exception as e:
+        logger.warning(f"Could not save session to DB: {e}")
+
+    # Store in Flask session for immediate /feedback render
+    # Trim long fields to stay within Flask's 4KB cookie limit
+    session_data = {k: v for k, v in feedback.items()}
+    for field in ("improved_version", "improved_full"):
+        if isinstance(session_data.get(field), str) and len(session_data[field]) > 500:
+            session_data[field] = session_data[field][:500] + "..."
+    session["last_feedback"] = session_data
 
     return jsonify({
         "status":              "ok",
+        "session_id":          saved_session_id,
         "pronunciation_score": feedback.get("pronunciation_score", 0),
         "fluency_score":       feedback.get("fluency_score", 0),
         "grammar_score":       feedback.get("grammar_score", 0),
@@ -212,31 +249,36 @@ def api_feedback():
     })
 
 
-# ── API: Status ───────────────────────────────────────────────
+# API: Status
 @app.route("/api/status")
 def api_status():
-    """Check Whisper and Ollama status."""
-    # Whisper
     try:
         import whisper
         whisper_ok = True
     except ImportError:
         whisper_ok = False
 
-    # Ollama
     try:
         from ollama_feedback import check_ollama
         ollama_status = check_ollama()
     except Exception as e:
         ollama_status = {"ollama_running": False, "error": str(e)}
 
+    # Check DB
+    try:
+        db.session.execute(db.text("SELECT 1"))
+        db_ok = True
+    except Exception:
+        db_ok = False
+
     return jsonify({
-        "whisper_installed":  whisper_ok,
-        "whisper_model":      WHISPER_MODEL,
-        "ffmpeg_note":        "Run 'ffmpeg -version' to verify",
+        "whisper_installed": whisper_ok,
+        "whisper_model":     WHISPER_MODEL,
         **ollama_status,
+        "database_connected": db_ok,
     })
 
 
 if __name__ == "__main__":
+    init_db()
     app.run(debug=True)
