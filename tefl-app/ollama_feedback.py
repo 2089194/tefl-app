@@ -28,7 +28,6 @@ logger = logging.getLogger(__name__)
 FEEDBACK_PROVIDER = os.environ.get("FEEDBACK_PROVIDER", "groq")
 
 # Groq settings
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 GROQ_MODEL   = "llama-3.3-70b-versatile"
 GROQ_URL     = "https://api.groq.com/openai/v1/chat/completions"
 
@@ -74,10 +73,11 @@ def generate_feedback(transcript: str) -> dict:
 # ── Groq provider ─────────────────────────────────────────────────────────────
 
 def _generate_groq(transcript: str) -> dict:
-    """Send transcript to Groq cloud API for feedback generation."""
+    GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+    logger.info(f"Groq key prefix: {GROQ_API_KEY[:8]} length: {len(GROQ_API_KEY)}")
     if not GROQ_API_KEY:
-        logger.error("GROQ_API_KEY not set — falling back to Ollama")
-        return _generate_ollama(transcript)
+        return _error_feedback("GROQ_API_KEY not set in environment", transcript)
+
 
     prompt = FEEDBACK_PROMPT.format(transcript=transcript.strip())
 
