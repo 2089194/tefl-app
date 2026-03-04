@@ -2,17 +2,7 @@
 ollama_feedback.py
 ──────────────────
 AI feedback engine.
-
-Sprint 6 deployment: uses Groq cloud API (llama-3.3-70b-versatile)
-  - Groq is free tier, no credit card required
-  - Only the TEXT transcript is sent to Groq — audio never leaves the device
-  - Local Ollama fallback retained for local/offline deployment
-
-Privacy note (NFR-02 partial relaxation for hosted evaluation):
-  Audio transcription remains local (Whisper on server).
-  Text transcript is sent to Groq over HTTPS for feedback generation.
-  This is a temporary measure for remote client evaluation.
-  Production architecture restores full local processing via Ollama.
+Sprint 6: Groq cloud API for hosted deployment, Ollama fallback for local.
 """
 
 import os
@@ -20,25 +10,18 @@ import json
 import logging
 import urllib.request
 import urllib.error
+from dotenv import load_dotenv
+
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-# ── Provider selection ────────────────────────────────────────────────────────
-# Set FEEDBACK_PROVIDER=ollama in .env to use local Ollama instead of Groq
-FEEDBACK_PROVIDER = os.environ.get("FEEDBACK_PROVIDER", "groq")
+GROQ_MODEL = "llama-3.3-70b-versatile"
+GROQ_URL   = "https://api.groq.com/openai/v1/chat/completions"
 
-# Groq settings
-GROQ_MODEL   = "llama-3.3-70b-versatile"
-GROQ_URL     = "https://api.groq.com/openai/v1/chat/completions"
-
-# Ollama settings (local fallback)
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", os.environ.get("OLLAMA_URL", "http://localhost:11434"))
 OLLAMA_MODEL    = os.environ.get("OLLAMA_MODEL", "llama3.2")
 
-
-# ── Prompt ────────────────────────────────────────────────────────────────────
-# Note: phonetic field uses plain text (e.g. "kuhm-PYOO-ter") not IPA slashes
-# IPA notation was causing JSON truncation due to special characters
 FEEDBACK_PROMPT = """You are an English teacher giving feedback to a non-native speaker. Return ONLY valid JSON.
 
 TRANSCRIPT: {transcript}
@@ -47,45 +30,41 @@ Analyse the transcript and return this JSON with real values filled in:
 {{"pronunciation_score":75,"fluency_score":80,"grammar_score":70,"overall_comment":"Great effort, keep practising your English!","pronunciation_items":[{{"word":"actual mispronounced word from transcript","issue":"describe the actual problem","correction":"HOW-to-say-it","phonetic":"how-it-sounds"}}],"grammar_items":[{{"incorrect":"actual wrong phrase from transcript","correct":"corrected version","explanation":"why it is wrong in plain English","example":"new sentence using correct form"}}],"improved_version":"rewrite transcript improving flow and removing repetition","improved_full":"rewrite transcript fixing all grammar and pronunciation errors"}}
 
 Rules:
-- Fill every field with real analysis of the transcript above — do not leave fields empty
-- pronunciation_items: up to 2 real mispronounced words from the transcript, or [] if none
-- grammar_items: up to 2 real grammar errors from the transcript, or [] if none
-- improved_version: rewrite the EXACT words from the transcript above with only flow improvements
-- improved_full: rewrite the EXACT words from the transcript above fixing all errors — stay close to what was said
+- Fill every field with real analysis of the transcript above
+- pronunciation_items: up to 2 real mispronounced words, or [] if none
+- grammar_items: up to 2 real grammar errors, or [] if none
+- improved_version: rewrite with only flow improvements
+- improved_full: rewrite fixing all errors
 - Scores: 60-75 many errors, 75-85 some errors, 85-95 minor errors, 95-100 perfect
-- Use plain English phonetics like "WEE-kend" not IPA symbols — IPA causes truncation
+- Use plain English phonetics like "WEE-kend" not IPA symbols
 - Return ONLY the JSON, no other text"""
 
 
-# ── Public entry point ────────────────────────────────────────────────────────
-
 def generate_feedback(transcript: str) -> dict:
-    """Send transcript to AI provider and return structured feedback."""
     if not transcript or not transcript.strip():
         return _empty_feedback("No transcript provided.")
 
-    if FEEDBACK_PROVIDER == "groq":
-        return _generate_groq(transcript)
+    # Read key fresh every call — never cache at module level
+    groq_key      = os.environ.get("GROQ_API_KEY", "")
+    provider      = os.environ.get("FEEDBACK_PROVIDER", "groq")
+
+    logger.info(f"Feedback provider: {provider}")
+    logger.info(f"Groq key prefix: {groq_key[:8] if groq_key else 'NOT SET'} length: {len(groq_key)}")
+
+    if provider == "groq" and groq_key:
+        return _generate_groq(transcript, groq_key)
     else:
+        logger.warning("Groq not configured — falling back to Ollama")
         return _generate_ollama(transcript)
 
 
-# ── Groq provider ─────────────────────────────────────────────────────────────
-
-def _generate_groq(transcript: str) -> dict:
-    GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
-    logger.info(f"Groq key prefix: {GROQ_API_KEY[:8]} length: {len(GROQ_API_KEY)}")
-    if not GROQ_API_KEY:
-        return _error_feedback("GROQ_API_KEY not set in environment", transcript)
-
-
-    prompt = FEEDBACK_PROMPT.format(transcript=transcript.strip())
-
+def _generate_groq(transcript: str, api_key: str) -> dict:
+    prompt  = FEEDBACK_PROMPT.format(transcript=transcript.strip())
     payload = json.dumps({
-        "model": GROQ_MODEL,
+        "model":    GROQ_MODEL,
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.3,
-        "max_tokens": 1200,
+        "max_tokens":  1200,
     }).encode("utf-8")
 
     req = urllib.request.Request(
@@ -93,7 +72,7 @@ def _generate_groq(transcript: str) -> dict:
         data=payload,
         headers={
             "Content-Type":  "application/json",
-            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Authorization": f"Bearer {api_key}",
         },
         method="POST",
     )
@@ -103,10 +82,13 @@ def _generate_groq(transcript: str) -> dict:
             raw  = resp.read().decode("utf-8")
             data = json.loads(raw)
             response_text = data["choices"][0]["message"]["content"].strip()
-
         logger.info(f"Groq response (first 200 chars): {response_text[:200]}")
         return _parse_response(response_text, transcript)
 
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8") if hasattr(e, 'read') else ""
+        logger.error(f"Groq HTTP error {e.code}: {body[:200]}")
+        return _error_feedback(f"Groq HTTP {e.code}: {body[:100]}", transcript)
     except urllib.error.URLError as e:
         logger.error(f"Groq connection error: {e}")
         return _error_feedback(f"Groq connection error: {e}", transcript)
@@ -115,20 +97,13 @@ def _generate_groq(transcript: str) -> dict:
         return _error_feedback(str(e), transcript)
 
 
-# ── Ollama provider (local fallback) ──────────────────────────────────────────
-
 def _generate_ollama(transcript: str) -> dict:
-    """Send transcript to local Ollama instance for feedback generation."""
-    prompt = FEEDBACK_PROMPT.format(transcript=transcript.strip())
-
+    prompt  = FEEDBACK_PROMPT.format(transcript=transcript.strip())
     payload = json.dumps({
         "model":  OLLAMA_MODEL,
         "prompt": prompt,
         "stream": False,
-        "options": {
-            "temperature": 0.3,
-            "num_predict": 1200,
-        }
+        "options": {"temperature": 0.3, "num_predict": 1200}
     }).encode("utf-8")
 
     req = urllib.request.Request(
@@ -143,28 +118,19 @@ def _generate_ollama(transcript: str) -> dict:
             raw  = resp.read().decode("utf-8")
             data = json.loads(raw)
             response_text = data.get("response", "").strip()
-
         logger.info(f"Ollama response (first 200 chars): {response_text[:200]}")
         return _parse_response(response_text, transcript)
-
     except urllib.error.URLError as e:
         logger.error(f"Ollama connection error: {e}")
-        return _error_feedback(
-            "Ollama is not running. Please start it with: ollama serve",
-            transcript
-        )
+        return _error_feedback("Ollama is not running. Start it with: ollama serve", transcript)
     except Exception as e:
         logger.error(f"Ollama feedback error: {e}")
         return _error_feedback(str(e), transcript)
 
 
-# ── Response parsing ──────────────────────────────────────────────────────────
-
 def _parse_response(response_text: str, transcript: str) -> dict:
-    """Parse AI response, extracting JSON even if wrapped in markdown."""
     text = response_text.strip()
 
-    # Strip markdown code fences if present
     if "```" in text:
         parts = text.split("```")
         for part in parts:
@@ -175,22 +141,20 @@ def _parse_response(response_text: str, transcript: str) -> dict:
                 text = part
                 break
 
-    # Find JSON object boundaries
     start = text.find("{")
     end   = text.rfind("}") + 1
     if start == -1 or end == 0:
-        logger.error("No JSON object found in AI response")
-        return _error_feedback("Could not parse AI response as JSON.", transcript)
+        logger.error("No JSON found in AI response")
+        return _error_feedback("Could not parse AI response.", transcript)
 
     json_str = text[start:end]
 
     try:
         parsed = json.loads(json_str)
     except json.JSONDecodeError as e:
-        logger.error(f"JSON parse error: {e}\nText was: {json_str[:300]}")
+        logger.error(f"JSON parse error: {e}\nText: {json_str[:300]}")
         return _salvage_partial(json_str, transcript, str(e))
 
-    # Validate and clamp scores
     for key in ("pronunciation_score", "fluency_score", "grammar_score"):
         val = parsed.get(key, 70)
         try:
@@ -198,20 +162,15 @@ def _parse_response(response_text: str, transcript: str) -> dict:
         except (TypeError, ValueError):
             parsed[key] = 70
 
-    # Safe defaults for all required keys
     parsed.setdefault("pronunciation_items", [])
     parsed.setdefault("grammar_items",       [])
     parsed.setdefault("improved_version",    transcript)
     parsed.setdefault("improved_full",       transcript)
     parsed.setdefault("overall_comment",     "Good effort! Keep practising.")
 
-    # Detect filler words deterministically — never trust the AI for this
     parsed["filler_words"] = _detect_filler_words(transcript)
-
-    # Cap items at 2
     parsed["pronunciation_items"] = parsed["pronunciation_items"][:2]
     parsed["grammar_items"]       = parsed["grammar_items"][:2]
-
     parsed["transcript"] = transcript
     parsed["ollama_ok"]  = True
     parsed["error"]      = None
@@ -220,14 +179,12 @@ def _parse_response(response_text: str, transcript: str) -> dict:
         f"Feedback parsed OK — "
         f"pronunciation={parsed['pronunciation_score']} "
         f"fluency={parsed['fluency_score']} "
-        f"grammar={parsed['grammar_score']} "
-        f"provider={FEEDBACK_PROVIDER}"
+        f"grammar={parsed['grammar_score']}"
     )
     return parsed
 
 
 def _detect_filler_words(transcript: str) -> list:
-    """Detect filler words from transcript — deterministic, never hallucinates."""
     import re
     FILLERS = [
         "um", "umm", "uh", "uhh", "uhm",
@@ -245,7 +202,6 @@ def _detect_filler_words(transcript: str) -> list:
 
 
 def _salvage_partial(json_str: str, transcript: str, parse_error: str) -> dict:
-    """Extract scores from truncated JSON response."""
     import re
     result = _error_feedback(f"Partial response: {parse_error}", transcript)
     patterns = {
@@ -259,7 +215,6 @@ def _salvage_partial(json_str: str, transcript: str, parse_error: str) -> dict:
         if m:
             val = m.group(1)
             result[key] = max(0, min(100, int(val))) if key.endswith("_score") else val
-
     if any(result.get(k, 0) > 0 for k in ("pronunciation_score", "fluency_score", "grammar_score")):
         result["ollama_ok"] = True
         result["error"]     = None
@@ -270,8 +225,7 @@ def _salvage_partial(json_str: str, transcript: str, parse_error: str) -> dict:
 def _empty_feedback(reason: str) -> dict:
     return {
         "pronunciation_score": 0, "fluency_score": 0, "grammar_score": 0,
-        "overall_comment": reason,
-        "pronunciation_items": [], "grammar_items": [],
+        "overall_comment": reason, "pronunciation_items": [], "grammar_items": [],
         "filler_words": [], "improved_version": "", "improved_full": "",
         "transcript": "", "ollama_ok": False, "error": reason,
     }
@@ -289,7 +243,6 @@ def _error_feedback(reason: str, transcript: str) -> dict:
 
 
 def check_ollama() -> dict:
-    """Check if Ollama is running — used by /api/status."""
     req = urllib.request.Request(f"{OLLAMA_BASE_URL}/api/tags", method="GET")
     try:
         with urllib.request.urlopen(req, timeout=5) as resp:
@@ -297,12 +250,11 @@ def check_ollama() -> dict:
             models = [m["name"] for m in data.get("models", [])]
             model_ready = any(OLLAMA_MODEL in m for m in models)
             return {
-                "ollama_running":   True,
-                "model_configured": OLLAMA_MODEL,
-                "model_available":  model_ready,
-                "available_models": models,
-                "pull_command":     f"ollama pull {OLLAMA_MODEL}" if not model_ready else None,
-                "feedback_provider": FEEDBACK_PROVIDER,
+                "ollama_running":    True,
+                "model_configured":  OLLAMA_MODEL,
+                "model_available":   model_ready,
+                "available_models":  models,
+                "feedback_provider": os.environ.get("FEEDBACK_PROVIDER", "groq"),
             }
     except urllib.error.URLError:
         return {
@@ -310,8 +262,7 @@ def check_ollama() -> dict:
             "model_configured":  OLLAMA_MODEL,
             "model_available":   False,
             "available_models":  [],
-            "start_command":     "ollama serve",
-            "feedback_provider": FEEDBACK_PROVIDER,
+            "feedback_provider": os.environ.get("FEEDBACK_PROVIDER", "groq"),
         }
     except Exception as e:
         return {"ollama_running": False, "error": str(e)}
