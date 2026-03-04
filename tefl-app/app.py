@@ -1,6 +1,6 @@
 """
 app.py - TEFL Speaking Feedback Tool
-Sprint 6 - Railway deployment with Groq feedback API
+Sprint 6 - Groq feedback API + ngrok/Railway deployment
 """
 
 import os
@@ -16,8 +16,6 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
 
 # ── Database configuration ────────────────────────────────────────────────────
-# Railway provides DATABASE_URL automatically when Postgres plugin is added.
-# Falls back to SQLite for local development.
 database_url = os.environ.get("DATABASE_URL", "sqlite:///tefl_app.db")
 
 # Railway uses postgres:// but SQLAlchemy requires postgresql://
@@ -30,7 +28,7 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 from models import db
 db.init_app(app)
 
-WHISPER_MODEL = os.environ.get("WHISPER_MODEL", "base")
+WHISPER_MODEL = os.environ.get("WHISPER_MODEL", "small")
 OLLAMA_MODEL  = os.environ.get("OLLAMA_MODEL",  "llama3.2")
 
 PROMPTS = [
@@ -253,6 +251,21 @@ def api_feedback():
     })
 
 
+# ── API: Debug (temporary — remove before final submission) ──────────────────
+
+@app.route("/api/debug-env")
+def debug_env():
+    key = os.environ.get("GROQ_API_KEY", "NOT SET")
+    return jsonify({
+        "groq_key_set":      bool(key and key != "NOT SET"),
+        "groq_key_prefix":   key[:8] if len(key) > 8 else key,
+        "groq_key_length":   len(key),
+        "feedback_provider": os.environ.get("FEEDBACK_PROVIDER", "NOT SET"),
+        "database_url_set":  bool(os.environ.get("DATABASE_URL")),
+        "whisper_model":     WHISPER_MODEL,
+    })
+
+
 # ── API: Status ───────────────────────────────────────────────────────────────
 
 @app.route("/api/status")
@@ -275,20 +288,15 @@ def api_status():
         **ollama_status,
     })
 
-@app.route("/api/debug-env")
-def debug_env():
-    key = os.environ.get("GROQ_API_KEY", "NOT SET")
-    return jsonify({
-        "groq_key_set":      bool(key and key != "NOT SET"),
-        "groq_key_prefix":   key[:8] if len(key) > 8 else key,
-        "groq_key_length":   len(key),
-        "feedback_provider": os.environ.get("FEEDBACK_PROVIDER", "NOT SET"),
-        "database_url_set":  bool(os.environ.get("DATABASE_URL")),
-    })
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     init_db()
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=False)
+    app.run(
+        host="0.0.0.0",
+        port=port,
+        debug=False,
+        use_reloader=False,   # prevents Flask restarting mid-model-download
+    )
