@@ -1,22 +1,23 @@
+# TEFL Speaking Tool - Sprint 6 Railway deployment
+
 # Web framework
-flask>=3.0.0
-python-dotenv>=1.0.0
+flask==3.0.3
+flask-sqlalchemy==3.1.1
+flask-login==0.6.3
+flask-bcrypt==1.0.1
+flask-cors==4.0.1
+flask-wtf==1.2.1
+python-dotenv==1.0.1
+wtforms==3.1.2
+email-validator==2.2.0
 
-# Sprint 2 - Speech-to-text
-# Option A: whisper-large-v3-turbo via Hugging Face (recommended)
-transformers>=4.40.0
-torch>=2.0.0
-# Option B: standard openai-whisper (fallback if transformers unavailable)
-openai-whisper
+# Database
+psycopg2-binary==2.9.9
 
-# Sprint 3 - AI feedback
-# (Ollama runs as a separate process, no Python package needed)
+# Speech-to-text
+# Uses faster-whisper with small model for hosted deployment
+# CrisperWhisper used for local deployment (see whisper_stt.py)
+faster-whisper>=1.1.0
 
-# Sprint 4 - Database
-flask-sqlalchemy>=3.1.0
-psycopg2-binary>=2.9.9
-
-# NOTE: System dependencies required:
-#   ffmpeg  - for audio decoding (C:\ffmpeg\bin must be on PATH)
-#   Ollama  - local LLM server (https://ollama.com)
-#   PostgreSQL - database server (https://www.postgresql.org/download/)
+# HTTP
+requests==2.32.3

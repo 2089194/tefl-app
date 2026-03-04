@@ -71,10 +71,13 @@
     try {
       const stream = await navigator.mediaDevices.getUserMedia({audio:true});
       audioChunks = [];
-      mediaRecorder = new MediaRecorder(stream);
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : 'audio/webm';
+      mediaRecorder = new MediaRecorder(stream, { mimeType });
       mediaRecorder.ondataavailable = e => { if(e.data.size>0) audioChunks.push(e.data); };
       mediaRecorder.onstop = () => { stream.getTracks().forEach(t=>t.stop()); onRecordingDone(); };
-      mediaRecorder.start(100);
+      mediaRecorder.start();
       setRecording(true);
       startTimer();
       startWaveform(stream);

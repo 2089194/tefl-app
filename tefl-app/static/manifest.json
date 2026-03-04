@@ -1,0 +1,9 @@
+{
+    "name": "TEFL Speaking Feedback",
+    "short_name": "tefl-app",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#2E74B5",
+    "icons": [{"src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png"}]
+  }
