@@ -29,7 +29,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 _model = None
-MODEL_ID = "Systran/faster-whisper-tiny"
+MODEL_ID = "Systran/faster-whisper-small"
 
 
 def _get_model():
