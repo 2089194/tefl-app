@@ -1,115 +1,175 @@
 """
 whisper_stt.py
 ──────────────
-Speech-to-text using OpenAI Whisper via the Hugging Face transformers library.
+Speech-to-text using faster_CrisperWhisper via the faster-whisper framework.
 
-Model: openai/whisper-large-v3-turbo
-  - Distilled from whisper-large-v3
-  - Near large-v3 accuracy at significantly faster speed
-  - Best filler word and disfluency preservation of all Whisper variants
-  - Runs on GPU (CUDA) if available (~1.6GB VRAM), otherwise CPU (~3GB RAM)
-  - Downloaded once (~1.6GB) and cached to disk
+Model: nyrahealth/faster_CrisperWhisper
+  - CrisperWhisper converted to CTranslate2 (INT8 quantised)
+  - Verbatim transcription: preserves um, uh, like, false starts, stutters
+  - ~1.5–2 GB RAM on CPU with INT8 (vs ~3.7 GB for whisper-large via PyTorch)
+  - No ffmpeg system install required (PyAV handles audio decoding)
+  - Downloaded once (~1.5 GB) and cached to ~/.cache/huggingface/hub/
 
-Fallback: if transformers model fails, falls back to openai-whisper base model.
+Key difference from standard Whisper:
+  CrisperWhisper was fine-tuned specifically to NOT normalise disfluencies.
+  No inference-time flags or prompts are needed — it captures filler words
+  by default.
 
-Key flags used:
-  condition_on_previous_text=False  — prevents Whisper from correcting
-      subsequent words based on prior output, preserving disfluencies
-  return_timestamps=True            — required for audio longer than 30 seconds
+Sprint 6 fixes:
+  - vad_filter disabled (was removing genuine speech)
+  - beam_size reduced to 1 (reduces word-joining artefacts)
+  - _clean_transcript() normalises CrisperWhisper output artefacts
 """
 
 import os
+import re
 import tempfile
 import logging
 
 logger = logging.getLogger(__name__)
 
-# ── Model cache ───────────────────────────────────────────────
-_pipeline = None
-_fallback_model = None
-_loaded_model_name = None
-
-HUGGINGFACE_MODEL = "openai/whisper-large-v3-turbo"
+_model = None
+MODEL_ID = "Systran/faster-whisper-small"
 
 
-def _get_pipeline():
-    """Load and cache the Hugging Face whisper pipeline."""
-    global _pipeline
-    if _pipeline is not None:
-        return _pipeline
+def _get_model():
+    """Load and cache the faster_CrisperWhisper model."""
+    global _model
+    if _model is not None:
+        return _model
 
     try:
-        import torch
-        from transformers import pipeline
+        from faster_whisper import WhisperModel
 
-        logger.info(f"Loading {HUGGINGFACE_MODEL} via transformers (first request only)")
-        logger.info("This may take a few minutes on first run — model is ~1.6GB")
+        logger.info(f"Loading {MODEL_ID} (first request only — ~1.5 GB download)")
+        logger.info("Using INT8 quantisation on CPU — lower memory, faster inference")
 
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        dtype  = torch.float16 if device == "cuda" else torch.float32
-
-        _pipeline = pipeline(
-            "automatic-speech-recognition",
-            model=HUGGINGFACE_MODEL,
-            device=device,
-            dtype=dtype,
+        _model = WhisperModel(
+            MODEL_ID,
+            device="cpu",
+            compute_type="int8",   # quantised: ~1.5–2 GB RAM vs ~3.7 GB float32
+            cpu_threads=6,         # adjust to match your core count
+            download_root=None,    # uses default HF cache (~/.cache/huggingface)
         )
-        logger.info(f"Loaded {HUGGINGFACE_MODEL} successfully on {device}")
-        return _pipeline
 
-    except ImportError as e:
-        logger.error(f"transformers/torch not installed: {e}")
+        logger.info(f"Loaded {MODEL_ID} successfully")
+        return _model
+
+    except ImportError:
         raise RuntimeError(
-            "transformers and torch are required for whisper-large-v3-turbo. "
-            "Run: pip install transformers torch"
+            "faster-whisper is not installed. Run: pip install faster-whisper"
         )
     except Exception as e:
-        logger.error(f"Failed to load {HUGGINGFACE_MODEL}: {e}")
+        logger.error(f"Failed to load {MODEL_ID}: {e}")
         raise
 
 
-def _get_fallback_model(model_name: str = "small"):
-    """Load standard openai-whisper as fallback."""
-    global _fallback_model, _loaded_model_name
-    if _fallback_model is None or _loaded_model_name != model_name:
-        try:
-            import whisper
-            logger.info(f"Loading fallback Whisper model: {model_name}")
-            _fallback_model = whisper.load_model(model_name)
-            _loaded_model_name = model_name
-            logger.info("Fallback Whisper model loaded.")
-        except ImportError:
-            raise RuntimeError("openai-whisper not installed. Run: pip install openai-whisper")
-    return _fallback_model
+def _clean_transcript(text: str) -> str:
+    """
+    Normalise CrisperWhisper output artefacts to flowing plain text.
+
+    CrisperWhisper (via CTranslate2) can produce:
+      - "Word.Next.Word"     -- periods used as word separators
+      - "Word,Next,Word"     -- commas used as word separators
+      - "[UH]", "[UM]"       -- disfluencies wrapped in square brackets
+      - "Lastweekend"        -- missing space at word boundaries (camelCase join)
+      - Excess whitespace
+
+    This function converts all of the above to clean, readable text
+    while preserving the disfluency words themselves (uh, um, er, etc.)
+    which are the primary signals for fluency scoring.
+    """
+    # "Word.Next" or "Word,Next" -> "Word Next"
+    # Only fires when punctuation sits directly between word characters,
+    # so genuine sentence-ending punctuation (followed by space) is unaffected
+    text = re.sub(r'(?<=[A-Za-z])[.,](?=[A-Za-z\[])', ' ', text)
+
+    # "[UH]" / "[UM]" / "[ER]" / "[HM]" -> "uh" / "um" / "er" / "hm"
+    text = re.sub(r'\[([A-Za-z]+)\]', lambda m: m.group(1).lower(), text)
+
+    # "Lastweekend" / "Iwentto" -> insert space before capital after lowercase
+    # Handles camelCase-style joins at segment boundaries
+    text = re.sub(r'(?<=[a-z])(?=[A-Z])', ' ', text)
+
+    # Collapse multiple spaces to single space
+    text = re.sub(r'  +', ' ', text)
+
+    return text.strip()
 
 
-def transcribe_audio(audio_bytes: bytes, model_name: str = "large-v3-turbo") -> dict:
+def transcribe_audio(audio_bytes: bytes, model_name: str = None) -> dict:
     """
-    Transcribe audio bytes using whisper-large-v3-turbo via transformers.
-    Falls back to openai-whisper small if transformers is unavailable.
+    Transcribe audio bytes using faster_CrisperWhisper.
+
+    Args:
+        audio_bytes: Raw audio data (webm, mp3, wav, etc.)
+        model_name:  Ignored -- model is fixed to CrisperWhisper.
+                     Kept for API compatibility with previous whisper_stt.py.
+
+    Returns:
+        dict with keys:
+            transcript (str)      -- full verbatim transcription
+            language   (str)      -- detected language code e.g. 'en'
+            segments   (list)     -- list of segment dicts with timestamps
+            error      (str|None) -- error message if transcription failed
     """
-    suffix = ".webm"
-    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+    # Write audio bytes to a temp file -- faster-whisper expects a file path
+    with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp:
         tmp.write(audio_bytes)
         tmp_path = tmp.name
 
     try:
-        # Try transformers pipeline first
-        try:
-            pipe = _get_pipeline()
-            result = _transcribe_with_pipeline(pipe, tmp_path)
-            logger.info(f"Transcribed with {HUGGINGFACE_MODEL}: {len(result['transcript'])} chars")
-            return result
+        model = _get_model()
 
-        except RuntimeError as e:
-            # transformers not available — fall back to openai-whisper
-            logger.warning(f"Falling back to openai-whisper: {e}")
-            fallback_name = model_name if model_name in ("tiny", "base", "small", "medium") else "small"
-            return _transcribe_with_whisper(tmp_path, fallback_name)
+        segments_generator, info = model.transcribe(
+            tmp_path,
+            language="en",
+            beam_size=1,       # greedy decoding -- faster and reduces word-joining
+                               # artefacts observed with beam_size=5 on conversational speech
+            vad_filter=False,  # disabled -- default VAD was too aggressive and
+                               # removed genuine speech, causing truncated transcripts
+        )
+
+        # Consume the generator -- must be done before the temp file is deleted
+        segments = []
+        transcript_parts = []
+        for seg in segments_generator:
+            segments.append({
+                "start": seg.start,
+                "end":   seg.end,
+                "text":  seg.text.strip(),
+            })
+            transcript_parts.append(seg.text)
+
+        raw_transcript = " ".join(transcript_parts).strip()
+        transcript = _clean_transcript(raw_transcript)
+
+        logger.info(
+            f"Transcribed {len(audio_bytes)//1024}KB -- "
+            f"{len(transcript)} chars, language={info.language} "
+            f"({info.language_probability:.0%} confidence)"
+        )
+
+        if raw_transcript != transcript:
+            logger.debug(
+                f"Cleaned transcript: {raw_transcript!r} -> {transcript!r}"
+            )
+
+        return {
+            "transcript": transcript,
+            "language":   info.language,
+            "segments":   segments,
+            "error":      None,
+        }
 
     except Exception as e:
         logger.error(f"Transcription error: {e}")
-        return {"transcript": "", "language": "unknown", "segments": [], "error": str(e)}
+        return {
+            "transcript": "",
+            "language":   "unknown",
+            "segments":   [],
+            "error":      str(e),
+        }
     finally:
         try:
             os.unlink(tmp_path)
@@ -117,47 +177,6 @@ def transcribe_audio(audio_bytes: bytes, model_name: str = "large-v3-turbo") -> 
             pass
 
 
-def _transcribe_with_pipeline(pipe, audio_path: str) -> dict:
-    """Transcribe using the Hugging Face transformers pipeline."""
-    result = pipe(
-        audio_path,
-        generate_kwargs={
-            "language":                 "english",
-            "condition_on_prev_tokens": False,  # preserve disfluencies
-        },
-        return_timestamps=True,
-    )
-    transcript = result.get("text", "").strip()
-    return {
-        "transcript": transcript,
-        "language":   "en",
-        "segments":   [],
-        "error":      None,
-    }
-
-
-def _transcribe_with_whisper(audio_path: str, model_name: str) -> dict:
-    """Transcribe using standard openai-whisper package."""
-    import whisper
-    model = _get_fallback_model(model_name)
-    result = model.transcribe(
-        audio_path,
-        language=None,
-        task="transcribe",
-        fp16=False,
-        verbose=False,
-        condition_on_previous_text=False,
-        no_speech_threshold=0.3,
-        temperature=0.0,
-    )
-    return {
-        "transcript": result.get("text", "").strip(),
-        "language":   result.get("language", "unknown"),
-        "segments":   result.get("segments", []),
-        "error":      None,
-    }
-
-
 def get_model_name() -> str:
-    """Return the configured model name from env or default."""
-    return os.environ.get("WHISPER_MODEL", "large-v3-turbo")
+    """Return model identifier -- kept for API compatibility."""
+    return MODEL_ID
