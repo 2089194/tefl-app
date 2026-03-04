@@ -275,6 +275,16 @@ def api_status():
         **ollama_status,
     })
 
+@app.route("/api/debug-env")
+def debug_env():
+    key = os.environ.get("GROQ_API_KEY", "NOT SET")
+    return jsonify({
+        "groq_key_set":      bool(key and key != "NOT SET"),
+        "groq_key_prefix":   key[:8] if len(key) > 8 else key,
+        "groq_key_length":   len(key),
+        "feedback_provider": os.environ.get("FEEDBACK_PROVIDER", "NOT SET"),
+        "database_url_set":  bool(os.environ.get("DATABASE_URL")),
+    })
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 
