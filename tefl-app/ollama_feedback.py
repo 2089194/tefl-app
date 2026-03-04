@@ -59,23 +59,25 @@ def generate_feedback(transcript: str) -> dict:
 
 
 def _generate_groq(transcript: str, api_key: str) -> dict:
-    prompt  = FEEDBACK_PROMPT.format(transcript=transcript.strip())
-    payload = json.dumps({
-        "model":    GROQ_MODEL,
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.3,
-        "max_tokens":  1200,
-    }).encode("utf-8")
+    try:
+        from groq import Groq
+        client = Groq(api_key=api_key)
+        prompt = FEEDBACK_PROMPT.format(transcript=transcript.strip())
 
-    req = urllib.request.Request(
-        GROQ_URL,
-        data=payload,
-        headers={
-            "Content-Type":  "application/json",
-            "Authorization": f"Bearer {api_key}",
-        },
-        method="POST",
-    )
+        completion = client.chat.completions.create(
+            model=GROQ_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=1200,
+        )
+        response_text = completion.choices[0].message.content.strip()
+        logger.info(f"Groq response (first 200 chars): {response_text[:200]}")
+        return _parse_response(response_text, transcript)
+
+    except Exception as e:
+        logger.error(f"Groq error: {e}")
+        return _error_feedback(str(e), transcript)
+
 
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
